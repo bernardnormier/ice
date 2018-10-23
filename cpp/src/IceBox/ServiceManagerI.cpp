@@ -1059,9 +1059,9 @@ ServiceManagerI::observerCompleted(const shared_ptr<ServiceObserverPrx>& observe
     auto p = _observers.find(observer);
     if(p != _observers.end())
     {
-        auto observer = *p;
+        auto found = *p;
         _observers.erase(p);
-        observerRemoved(observer, ex);
+        observerRemoved(found, ex);
     }
 }
 #else

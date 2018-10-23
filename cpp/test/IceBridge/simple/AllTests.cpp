@@ -87,10 +87,10 @@ allTests(Test::TestHelper* helper)
 {
     Ice::CommunicatorPtr communicator = helper->communicator();
     cout << "testing connection to bridge... " << flush;
-    Ice::ObjectPrx base = communicator->stringToProxy("test:" + helper->getTestEndpoint(1) + ":" +
+    Ice::ObjectPrx prx = communicator->stringToProxy("test:" + helper->getTestEndpoint(1) + ":" +
                                                       helper->getTestEndpoint(1, "udp"));
-    test(base);
-    Test::MyClassPrx cl = Ice::checkedCast<Test::MyClassPrx>(base);
+    test(prx);
+    Test::MyClassPrx cl = Ice::checkedCast<Test::MyClassPrx>(prx);
     cl->ice_ping();
     cout << "ok" << endl;
 
