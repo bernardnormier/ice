@@ -23,6 +23,11 @@ using namespace std;
 using namespace Slice;
 using namespace IceUtilInternal;
 
+#if defined(__clang__)
+// TODO: fix this warning!
+#   pragma clang diagnostic ignored "-Wshadow"
+#endif
+
 namespace
 {
 

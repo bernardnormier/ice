@@ -23,6 +23,11 @@
 #include <unistd.h>
 #endif
 
+#if defined(__clang__)
+// TODO: fix this warning!
+#   pragma clang diagnostic ignored "-Wshadow"
+#endif
+
 using namespace std;
 using namespace Slice;
 using namespace IceUtil;
@@ -148,7 +153,7 @@ Slice::ObjCGenerator::moduleName(const ModulePtr& m)
 }
 
 ModulePtr
-Slice::ObjCGenerator::findModule(const ContainedPtr& cont, int baseTypes, bool mangleCasts)
+Slice::ObjCGenerator::findModule(const ContainedPtr& cont, int /*baseTypes*/, bool /*mangleCasts*/)
 {
     ModulePtr m = ModulePtr::dynamicCast(cont);
     ContainerPtr container = cont->container();

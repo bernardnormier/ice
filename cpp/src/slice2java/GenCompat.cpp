@@ -18,6 +18,11 @@
 
 #include <limits>
 
+#if defined(__clang__)
+// TODO: fix this warning!
+#   pragma clang diagnostic ignored "-Wshadow"
+#endif
+
 using namespace std;
 using namespace Slice;
 using namespace IceUtil;
@@ -596,7 +601,7 @@ Slice::JavaCompatVisitor::getParamsAsyncLambda(const OperationPtr& op, const str
 }
 
 vector<string>
-Slice::JavaCompatVisitor::getArgsAsyncLambda(const OperationPtr& op, const string& package, bool context, bool sentCB)
+Slice::JavaCompatVisitor::getArgsAsyncLambda(const OperationPtr& op, const string& /*package*/, bool context, bool sentCB)
 {
     vector<string> args = getInOutArgs(op, InParam);
 

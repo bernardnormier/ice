@@ -25,6 +25,13 @@
 #include <iterator>
 #include <string.h>
 
+#if defined(__clang__)
+// TODO: fix these warnings!
+#   pragma clang diagnostic ignored "-Wshadow"
+#   pragma clang diagnostic ignored "-Wshadow-field"
+#   pragma clang diagnostic ignored "-Wunused-parameter"
+#endif
+
 using namespace std;
 using namespace Slice;
 using namespace IceUtil;

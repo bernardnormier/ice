@@ -18,6 +18,13 @@ using namespace std;
 using namespace Ice;
 using namespace IceInternal;
 
+#if defined(__clang__)
+#   pragma clang diagnostic ignored "-Wshadow"
+#   if defined(NDEBUG)
+#      pragma clang diagnostic ignored "-Wunused-parameter"
+#   endif
+#endif
+
 #ifndef ICE_CPP11_MAPPING
 IceUtil::Shared* IceInternal::upCast(ACMMonitor* p) { return p; }
 IceUtil::Shared* IceInternal::upCast(FactoryACMMonitor* p) { return p; }
@@ -43,7 +50,7 @@ IceInternal::ACMConfig::ACMConfig(const Ice::PropertiesPtr& p,
     else
     {
         timeoutProperty = prefix + ".Timeout";
-    };
+    }
 
     int timeout = p->getPropertyAsIntWithDefault(timeoutProperty, static_cast<int>(dflt.timeout.toSeconds()));
     if(timeout >= 0)

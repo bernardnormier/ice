@@ -28,6 +28,11 @@ using namespace std;
 using namespace Slice;
 using namespace IceUtilInternal;
 
+#if defined(__clang__)
+// TODO: fix this warning!
+#   pragma clang diagnostic ignored "-Wshadow"
+#endif
+
 namespace
 {
 
@@ -661,7 +666,7 @@ Slice::ObjCVisitor::getServerArgs(const OperationPtr& op) const
     return result;
 }
 
-Slice::Gen::Gen(const string& name, const string& base, const string& include, const vector<string>& includePaths,
+Slice::Gen::Gen(const string& /*name*/, const string& base, const string& include, const vector<string>& includePaths,
                 const string& dir, const string& dllExport) :
     _base(base),
     _include(include),
@@ -901,7 +906,7 @@ Slice::Gen::UnitVisitor::visitModuleStart(const ModulePtr& p)
 }
 
 void
-Slice::Gen::UnitVisitor::visitUnitEnd(const UnitPtr& unit)
+Slice::Gen::UnitVisitor::visitUnitEnd(const UnitPtr&)
 {
     string uuid = IceUtil::generateUUID();
     for(string::size_type pos = 0; pos < uuid.size(); ++pos)
@@ -1624,7 +1629,7 @@ Slice::Gen::TypesVisitor::writeConstantValue(IceUtilInternal::Output& out, const
 }
 
 void
-Slice::Gen::TypesVisitor::writeInit(const ContainedPtr& p, const DataMemberList& dataMembers,
+Slice::Gen::TypesVisitor::writeInit(const ContainedPtr&, const DataMemberList& dataMembers,
                                     const DataMemberList& baseDataMembers, const DataMemberList& allDataMembers,
                                     bool requiresMemberInit, int baseType, ContainerType ct) const
 {
@@ -1778,7 +1783,7 @@ Slice::Gen::TypesVisitor::writeMembers(const DataMemberList& dataMembers, int ba
 }
 
 void
-Slice::Gen::TypesVisitor::writeMemberSignature(const DataMemberList& dataMembers, int baseType,
+Slice::Gen::TypesVisitor::writeMemberSignature(const DataMemberList& dataMembers, int /*baseType*/,
                                                ContainerType ct) const
 {
     if(ct == LocalException)
@@ -2671,7 +2676,7 @@ Slice::Gen::DelegateMVisitor::DelegateMVisitor(Output& H, Output& M, const strin
 }
 
 bool
-Slice::Gen::DelegateMVisitor::visitModuleStart(const ModulePtr& p)
+Slice::Gen::DelegateMVisitor::visitModuleStart(const ModulePtr&)
 {
     return true;
 }
@@ -3019,7 +3024,7 @@ Slice::Gen::DelegateMVisitor::visitClassDefStart(const ClassDefPtr& p)
 }
 
 void
-Slice::Gen::DelegateMVisitor::visitClassDefEnd(const ClassDefPtr& p)
+Slice::Gen::DelegateMVisitor::visitClassDefEnd(const ClassDefPtr&)
 {
     _H << nl << "@end";
     _M << nl << "@end";

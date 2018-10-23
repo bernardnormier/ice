@@ -389,7 +389,7 @@ IceInternal::IncomingBase::handleException(const std::exception& exc, bool amd)
             _responseHandler->sendNoResponse();
         }
     }
-    else if(const UserException* ex = dynamic_cast<const UserException*>(&exc))
+    else if(const UserException* uex = dynamic_cast<const UserException*>(&exc))
     {
         _observer.userException();
 
@@ -402,7 +402,7 @@ IceInternal::IncomingBase::handleException(const std::exception& exc, bool amd)
             _os.write(_current.requestId);
             _os.write(replyUserException);
             _os.startEncapsulation(_current.encoding, _format);
-            _os.write(*ex);
+            _os.write(*uex);
             _os.endEncapsulation();
             _observer.reply(static_cast<Int>(_os.b.size() - headerSize - 4));
             _responseHandler->sendResponse(_current.requestId, &_os, _compress, amd);
@@ -454,11 +454,11 @@ IceInternal::IncomingBase::handleException(const std::exception& exc, bool amd)
                 }
                 _os.write(str.str(), false);
             }
-            else if(const UserException* ue = dynamic_cast<const UserException*>(&exc))
+            else if(const UserException* use = dynamic_cast<const UserException*>(&exc))
             {
                 _os.write(replyUnknownUserException);
                 ostringstream str;
-                str << *ue;
+                str << *use;
                 if(IceUtilInternal::printStackTraces)
                 {
                     str <<  '\n' << ex->ice_stackTrace();
@@ -659,11 +659,11 @@ IceInternal::Incoming::invoke(const ServantManagerPtr& servantManager, InputStre
     if(obsv)
     {
         // Read the parameter encapsulation size.
-        Ice::Int sz;
-        _is->read(sz);
+        Ice::Int encapsSize;
+        _is->read(encapsSize);
         _is->i -= 4;
 
-        _observer.attach(obsv->getDispatchObserver(_current, static_cast<Int>(_is->i - start + sz)));
+        _observer.attach(obsv->getDispatchObserver(_current, static_cast<Int>(_is->i - start + encapsSize)));
     }
 
     //

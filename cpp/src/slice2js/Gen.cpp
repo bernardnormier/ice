@@ -17,6 +17,11 @@
 #include <Slice/FileTracker.h>
 #include <Slice/Util.h>
 
+#if defined(__clang__)
+// TODO: fix this warning!
+#   pragma clang diagnostic ignored "-Wshadow"
+#endif
+
 using namespace std;
 using namespace Slice;
 using namespace IceUtil;
@@ -419,7 +424,7 @@ Slice::JsVisitor::writeInitDataMembers(const DataMemberList& dataMembers)
 }
 
 string
-Slice::JsVisitor::getValue(const string& scope, const TypePtr& type)
+Slice::JsVisitor::getValue(const string& /*scope*/, const TypePtr& type)
 {
     assert(type);
 
@@ -479,7 +484,7 @@ Slice::JsVisitor::getValue(const string& scope, const TypePtr& type)
 }
 
 string
-Slice::JsVisitor::writeConstantValue(const string& scope, const TypePtr& type, const SyntaxTreeBasePtr& valueType,
+Slice::JsVisitor::writeConstantValue(const string& /*scope*/, const TypePtr& type, const SyntaxTreeBasePtr& valueType,
                                      const string& value)
 {
     ostringstream os;
@@ -642,7 +647,7 @@ Slice::Gen::Gen(const string& base, const vector<string>& includePaths, const st
     printGeneratedHeader(_out, _fileBase + ".ice");
 }
 
-Slice::Gen::Gen(const string& base, const vector<string>& includePaths, const string& dir, bool typeScript,
+Slice::Gen::Gen(const string& base, const vector<string>& includePaths, const string& /*dir*/, bool typeScript,
                 ostream& out) :
     _out(out),
     _includePaths(includePaths),
@@ -816,14 +821,14 @@ Slice::Gen::RequireVisitor::visitClassDefStart(const ClassDefPtr& p)
 }
 
 bool
-Slice::Gen::RequireVisitor::visitStructStart(const StructPtr& p)
+Slice::Gen::RequireVisitor::visitStructStart(const StructPtr&)
 {
     _seenStruct = true; // Set regardless of whether p->isLocal()
     return false;
 }
 
 void
-Slice::Gen::RequireVisitor::visitOperation(const OperationPtr& p)
+Slice::Gen::RequireVisitor::visitOperation(const OperationPtr&)
 {
     _seenOperation = true;
 }
@@ -880,7 +885,7 @@ Slice::Gen::RequireVisitor::visitDictionary(const DictionaryPtr& dict)
 }
 
 void
-Slice::Gen::RequireVisitor::visitEnum(const EnumPtr& p)
+Slice::Gen::RequireVisitor::visitEnum(const EnumPtr&)
 {
     _seenEnum = true;
 }
@@ -1157,7 +1162,7 @@ Slice::Gen::TypesVisitor::visitModuleStart(const ModulePtr& p)
 }
 
 void
-Slice::Gen::TypesVisitor::visitModuleEnd(const ModulePtr& p)
+Slice::Gen::TypesVisitor::visitModuleEnd(const ModulePtr&)
 {
 }
 
@@ -2362,7 +2367,7 @@ Slice::Gen::TypeScriptRequireVisitor::visitDictionary(const DictionaryPtr& dict)
 }
 
 void
-Slice::Gen::TypeScriptRequireVisitor::writeRequires(const UnitPtr& p)
+Slice::Gen::TypeScriptRequireVisitor::writeRequires(const UnitPtr&)
 {
     for(vector<pair<string, string> >::const_iterator i = _imports.begin(); i != _imports.end(); ++i)
     {
@@ -2447,7 +2452,7 @@ Slice::Gen::TypeScriptAliasVisitor::addAlias(const string& type, const string& p
 }
 
 bool
-Slice::Gen::TypeScriptAliasVisitor::visitModuleStart(const ModulePtr& p)
+Slice::Gen::TypeScriptAliasVisitor::visitModuleStart(const ModulePtr&)
 {
     return true;
 }
@@ -2549,7 +2554,7 @@ Slice::Gen::TypeScriptAliasVisitor::visitDictionary(const DictionaryPtr& dict)
 }
 
 void
-Slice::Gen::TypeScriptAliasVisitor::writeAlias(const UnitPtr& p)
+Slice::Gen::TypeScriptAliasVisitor::writeAlias(const UnitPtr&)
 {
     if(!_aliases.empty())
     {
