@@ -641,9 +641,9 @@ NodeSessionManager::createdSession(const NodeSessionPrx& session)
 
                     if(_sessions.find((*p)->ice_getIdentity()) == _sessions.end())
                     {
-                        NodeSessionKeepAliveThreadPtr session = addReplicaSession(*p);
-                        session->tryCreateSession();
-                        sessions.push_back(session);
+                        NodeSessionKeepAliveThreadPtr thread = addReplicaSession(*p);
+                        thread->tryCreateSession();
+                        sessions.push_back(thread);
                     }
                     else
                     {

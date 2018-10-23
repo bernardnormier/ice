@@ -342,7 +342,7 @@ IceSSL::EndpointI::operator<(const Ice::LocalObject& r) const
 }
 
 bool
-IceSSL::EndpointI::checkOption(const string& option, const string& argument, const string& endpoint)
+IceSSL::EndpointI::checkOption(const string& /*option*/, const string& /*argument*/, const string& /*endpoint*/)
 {
     return false;
 }
@@ -371,7 +371,7 @@ IceSSL::EndpointFactoryI::createWithUnderlying(const IceInternal::EndpointIPtr& 
 }
 
 IceInternal::EndpointIPtr
-IceSSL::EndpointFactoryI::readWithUnderlying(const IceInternal::EndpointIPtr& underlying, Ice::InputStream* s) const
+IceSSL::EndpointFactoryI::readWithUnderlying(const IceInternal::EndpointIPtr& underlying, Ice::InputStream*) const
 {
     return ICE_MAKE_SHARED(EndpointI, _instance, underlying);
 }

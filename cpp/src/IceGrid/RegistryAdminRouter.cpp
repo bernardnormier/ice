@@ -37,7 +37,7 @@ public:
         _adminRouter->ice_invoke_async(_callback, make_pair(&_inParams[0], &_inParams[0] + _inParams.size()), _current);
     }
 
-    void synchronized(const Ice::Exception& ex)
+    void synchronized(const Ice::Exception&)
     {
         _callback->ice_exception(Ice::ObjectNotExistException(__FILE__, __LINE__));
     }
