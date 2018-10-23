@@ -367,7 +367,11 @@ typeToString(const TypePtr& type)
     DictionaryPtr dict = DictionaryPtr::dynamicCast(type);
     if(dict)
     {
-        if(!StructPtr::dynamicCast(dict->keyType()))
+        if(StructPtr::dynamicCast(dict->keyType()))
+        {
+            return "struct";
+        }
+        else
         {
             return "containers.Map";
         }
@@ -3604,7 +3608,7 @@ CodeVisitor::visitDictionary(const DictionaryPtr& p)
 
         if(cls || convert)
         {
-            out << nl << "function r = convert(d, obj)";
+            out << nl << "function r = convert(d)";
             out.inc();
             if(st)
             {
