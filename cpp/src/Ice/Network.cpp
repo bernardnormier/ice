@@ -1156,7 +1156,7 @@ IceInternal::getAddresses(const string& host, int port, ProtocolSupport protocol
     struct addrinfo* info = 0;
     int retry = 5;
 
-    struct addrinfo hints = { 0 };
+    struct addrinfo hints = {};
     if(protocol == EnableIPv4)
     {
         hints.ai_family = PF_INET;
