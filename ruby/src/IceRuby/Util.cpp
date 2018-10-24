@@ -34,7 +34,7 @@ checkIsInstance(VALUE p, const char* type)
 
 template<typename T>
 bool
-setVersion(VALUE p, const T& version, const char* type)
+setVersion(VALUE p, const T& version, const char* /*type*/)
 {
     assert(checkIsInstance(p, type));
 
@@ -48,7 +48,7 @@ setVersion(VALUE p, const T& version, const char* type)
 
 template<typename T>
 bool
-getVersion(VALUE p, T& v, const char* type)
+getVersion(VALUE p, T& v, const char* /*type*/)
 {
     assert(checkIsInstance(p, type));
     volatile VALUE major = callRuby(rb_ivar_get, p, rb_intern("@major"));
