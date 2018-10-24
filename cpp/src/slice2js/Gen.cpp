@@ -2365,15 +2365,6 @@ Slice::Gen::TypeScriptRequireVisitor::visitDictionary(const DictionaryPtr& dict)
     addImport(dict->valueType(), dict);
 }
 
-void
-Slice::Gen::TypeScriptRequireVisitor::writeRequires(const UnitPtr&)
-{
-    for(vector<pair<string, string> >::const_iterator i = _imports.begin(); i != _imports.end(); ++i)
-    {
-        _out << nl << "import * as " << i->second << " from \"" << i->first << "\"";
-    }
-}
-
 Slice::Gen::TypeScriptAliasVisitor::TypeScriptAliasVisitor(IceUtilInternal::Output& out) :
     JsVisitor(out)
 {

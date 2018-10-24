@@ -45,9 +45,9 @@ class UnknownManagerException : public Exception
 {
 public:
 
-    UnknownManagerException(const string& name, const char* file, int line) :
+    UnknownManagerException(const string& nameP, const char* file, int line) :
         Exception(file, line),
-        name(name)
+        name(nameP)
     {
     }
 
