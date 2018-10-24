@@ -114,7 +114,7 @@ public:
 
 private:
 
-    void invoke(const Ice::ConnectionPtr& con)
+    void invoke(const Ice::ConnectionPtr&)
     {
         AdoptThread adoptThread; // Ensure the current thread is able to call into Python.
 #ifndef NDEBUG
@@ -171,7 +171,7 @@ public:
 
 private:
 
-    void invoke(const Ice::ConnectionPtr& con)
+    void invoke(const Ice::ConnectionPtr&)
     {
         AdoptThread adoptThread; // Ensure the current thread is able to call into Python.
 #ifndef NDEBUG

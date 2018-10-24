@@ -3214,12 +3214,12 @@ IcePy::SyncBlobjectInvocation::invoke(PyObject* args, PyObject* /* kwds */)
         if(!out.empty())
         {
             void* buf;
-            Py_ssize_t sz;
-            if(PyObject_AsWriteBuffer(op.get(), &buf, &sz))
+            Py_ssize_t ssz;
+            if(PyObject_AsWriteBuffer(op.get(), &buf, &ssz))
             {
                 throwPythonException();
             }
-            memcpy(buf, &out[0], sz);
+            memcpy(buf, &out[0], ssz);
         }
 #endif
 

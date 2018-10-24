@@ -33,7 +33,7 @@ checkIsInstance(PyObject* p, const char* type)
 }
 
 template<typename T> bool
-setVersion(PyObject* p, const T& version, const char* type)
+setVersion(PyObject* p, const T& version, const char* /*type*/)
 {
     assert(checkIsInstance(p, type));
 
@@ -52,7 +52,7 @@ setVersion(PyObject* p, const T& version, const char* type)
 }
 
 template<typename T> bool
-getVersion(PyObject* p, T& v, const char* type)
+getVersion(PyObject* p, T& v, const char* /*type*/)
 {
     assert(checkIsInstance(p, type));
     PyObjectHandle major = getAttr(p, "major", false);
