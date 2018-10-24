@@ -704,7 +704,6 @@ Slice::Gen::generate(const UnitPtr& p)
     {
         TypeScriptRequireVisitor requireVisitor(_out);
         p->visit(&requireVisitor, false);
-        requireVisitor.writeRequires(p);
 
         //
         // If at some point TypeScript adds an operator to refer to a type in the global scope
@@ -2568,8 +2567,22 @@ Slice::Gen::TypeScriptAliasVisitor::writeAlias(const UnitPtr&)
 
 Slice::Gen::TypeScriptVisitor::TypeScriptVisitor(::IceUtilInternal::Output& out,
                                                  const vector<pair<string, string> >& imports) :
-    JsVisitor(out, imports)
+    JsVisitor(out, imports),
+    _wroteImports(false)
 {
+}
+
+void
+Slice::Gen::TypeScriptVisitor::writeImports()
+{
+    if(!_wroteImports)
+    {
+        for(vector<pair<string, string> >::const_iterator i = _imports.begin(); i != _imports.end(); ++i)
+        {
+            _out << nl << "import * as " << i->second << " from \"" << i->first << "\"";
+        }
+        _wroteImports = true;
+    }
 }
 
 bool
@@ -2583,11 +2596,13 @@ Slice::Gen::TypeScriptVisitor::visitModuleStart(const ModulePtr& p)
         _out << sp;
         if(module.empty())
         {
+            writeImports();
             _out << nl << "export namespace " << fixId(p->name()) << sb;
         }
         else
         {
             _out << nl << "declare module \"" << fixId(module) << "\"" << sb;
+            writeImports();
             _out << nl << "namespace " << fixId(p->name()) << sb;
         }
     }
