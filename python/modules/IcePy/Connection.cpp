@@ -107,20 +107,9 @@ public:
         Py_DECREF(_con);
     }
 
-    virtual void closed(const Ice::ConnectionPtr& con)
-    {
-        invoke(con);
-    }
-
-private:
-
-    void invoke(const Ice::ConnectionPtr&)
+    virtual void closed(const Ice::ConnectionPtr&)
     {
         AdoptThread adoptThread; // Ensure the current thread is able to call into Python.
-#ifndef NDEBUG
-        ConnectionObject* c = reinterpret_cast<ConnectionObject*>(_con);
-        assert(con == *(c->connection));
-#endif
 
         PyObjectHandle args = Py_BuildValue(STRCAST("(O)"), _con);
         assert(_cb);
@@ -140,6 +129,8 @@ private:
             ex.raise();
         }
     }
+
+private:
 
     PyObject* _cb;
     PyObject* _con;
@@ -164,20 +155,9 @@ public:
         Py_DECREF(_con);
     }
 
-    virtual void heartbeat(const Ice::ConnectionPtr& con)
-    {
-        invoke(con);
-    }
-
-private:
-
-    void invoke(const Ice::ConnectionPtr&)
+    virtual void heartbeat(const Ice::ConnectionPtr&)
     {
         AdoptThread adoptThread; // Ensure the current thread is able to call into Python.
-#ifndef NDEBUG
-        ConnectionObject* c = reinterpret_cast<ConnectionObject*>(_con);
-        assert(con == *(c->connection));
-#endif
 
         PyObjectHandle args = Py_BuildValue(STRCAST("(O)"), _con);
         assert(_cb);
@@ -197,6 +177,8 @@ private:
             ex.raise();
         }
     }
+
+private:
 
     PyObject* _cb;
     PyObject* _con;

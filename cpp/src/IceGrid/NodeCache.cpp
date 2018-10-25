@@ -389,18 +389,18 @@ NodeEntry::setSession(const NodeSessionIPtr& session)
             }
             else
             {
-                NodeSessionIPtr session = _session;
+                NodeSessionIPtr s = _session;
                 sync.release();
                 try
                 {
-                    session->getNode()->ice_ping();
+                    s->getNode()->ice_ping();
                     throw NodeActiveException();
                 }
                 catch(const Ice::LocalException&)
                 {
                     try
                     {
-                        session->destroy(Ice::emptyCurrent);
+                        s->destroy(Ice::emptyCurrent);
                     }
                     catch(const Ice::ObjectNotExistException&)
                     {

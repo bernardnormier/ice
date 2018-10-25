@@ -610,8 +610,8 @@ run(const Ice::StringSeq& args)
             if(registry->ice_getIdentity() == localRegistry->ice_getIdentity())
             {
                 Ice::ObjectAdapterPtr colloc = communicator->createObjectAdapter(""); // colloc-only adapter
-                Ice::ObjectPrx router = colloc->addWithUUID(new ReuseConnectionRouter(locator));
-                communicator->setDefaultRouter(Ice::RouterPrx::uncheckedCast(router));
+                communicator->setDefaultRouter(Ice::RouterPrx::uncheckedCast(
+                    colloc->addWithUUID(new ReuseConnectionRouter(locator))));
                 registry = registry->ice_router(communicator->getDefaultRouter());
             }
 

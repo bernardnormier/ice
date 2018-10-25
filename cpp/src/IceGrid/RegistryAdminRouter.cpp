@@ -25,7 +25,7 @@ public:
                              const AMD_Object_ice_invokePtr& cb,
                              const pair<const Byte*, const Byte*>& inParams,
                              const Current& current) :
-        _callback(cb), _inParams(inParams.first, inParams.second), _current(current)
+        _adminRouter(adminRouter), _callback(cb), _inParams(inParams.first, inParams.second), _current(current)
     {
     }
 

@@ -1172,11 +1172,12 @@ extern "C"
 static int
 marshaledResultInit(MarshaledResultObject* self, PyObject* args, PyObject* /*kwds*/)
 {
+    PyObject* versionType = IcePy::lookupType("Ice.EncodingVersion");
     PyObject* result;
     OperationObject* opObj;
     PyObject* communicatorObj;
     PyObject* encodingObj;
-    if(!PyArg_ParseTuple(args, STRCAST("OOOO"), &result, &opObj, &communicatorObj, &encodingObj))
+    if(!PyArg_ParseTuple(args, STRCAST("OOOO!"), &result, &opObj, &communicatorObj, versionType, &encodingObj))
     {
         return -1;
     }
