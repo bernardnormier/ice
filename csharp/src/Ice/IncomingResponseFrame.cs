@@ -151,7 +151,7 @@ namespace ZeroC.Ice
 
         internal DispatchException ReadDispatchException()
         {
-            var istr = new InputStream(Protocol.GetEncoding(), Payload, 1);
+            var istr = new InputStream(Protocol.GetEncoding(), Payload.Slice(1));
             var identity = new Identity(istr);
             string facet = istr.ReadFacet();
             string operation = istr.ReadString();

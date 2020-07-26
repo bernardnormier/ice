@@ -132,19 +132,7 @@ namespace ZeroC.Ice
         public Encoding Encoding { get; private set; }
 
         /// <summary>The 0-based position (index) in the underlying buffer.</summary>
-        internal int Pos
-        {
-            get => _pos;
-            set
-            {
-                if (value < 0 || value > _buffer.Count)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(Pos),
-                        "the position value is outside the buffer bounds");
-                }
-                _pos = value;
-            }
-        }
+        internal int Pos => _pos;
 
         /// <summary>The sliced-off slices held by the current instance, if any.</summary>
         internal SlicedData? SlicedData
@@ -1152,14 +1140,10 @@ namespace ZeroC.Ice
         /// <summary>Constructs a new InputStream over a byte buffer.</summary>
         /// <param name="encoding">The encoding of the buffer.</param>
         /// <param name="buffer">The byte buffer.</param>
-        /// <param name="pos">The initial position in the buffer.</param>
-        internal InputStream(Encoding encoding, ArraySegment<byte> buffer, int pos = 0)
+        internal InputStream(Encoding encoding, ArraySegment<byte> buffer)
         {
-            // TODO: pos should always be 0 and buffer should be a slice as needed.
-            // Currently this does not work because of the tracing code that resets Pos to 0 to read the protocol frame
-            // headers.
             _buffer = buffer;
-            _pos = pos;
+            _pos = 0;
             Encoding = encoding;
         }
 
