@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using Test;
 
 namespace ZeroC.Ice.Test.FaultTolerance
@@ -70,6 +71,7 @@ namespace ZeroC.Ice.Test.FaultTolerance
                     output.Write($"shutting down server #{i}... ");
                     output.Flush();
                     obj.Clone(invocationTimeout: TimeSpan.FromMilliseconds(100)).Shutdown();
+                    Thread.Sleep(1000);
                     output.WriteLine("ok");
                 }
                 else

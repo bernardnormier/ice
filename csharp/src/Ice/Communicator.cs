@@ -259,7 +259,8 @@ namespace ZeroC.Ice
             new ConcurrentDictionary<IRouterPrx, RouterInfo>();
         private readonly Dictionary<Transport, BufWarnSizeInfo> _setBufWarnSize =
             new Dictionary<Transport, BufWarnSizeInfo>();
-        private SemaphoreSlim? _shutdownSemaphore;
+
+        private Task? _shutdownTask;
         private TaskCompletionSource<object?>? _waitForShutdownCompletionSource;
 
         private readonly IDictionary<Transport, Ice1EndpointFactory> _ice1TransportRegistry =
@@ -859,6 +860,9 @@ namespace ZeroC.Ice
 
             async Task PerformDestroyAsync()
             {
+                // TODO: we rely on the code below (especially closeTasks's evaluation) to be executed with _mutex
+                // locked.
+
                 // Cancel operations that are waiting and using the communicator's cancellation token
                 _cancellationTokenSource.Cancel();
 

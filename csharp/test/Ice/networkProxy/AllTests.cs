@@ -1,6 +1,7 @@
 // Copyright (c) ZeroC, Inc. All rights reserved.
 
 using System.IO;
+using System.Threading;
 using Test;
 
 namespace ZeroC.Ice.Test.NetworkProxy
@@ -45,6 +46,7 @@ namespace ZeroC.Ice.Test.NetworkProxy
             {
                 try
                 {
+                    Thread.Sleep(1000);
                     testPrx.IcePing();
                     TestHelper.Assert(false);
                 }

@@ -2,8 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace ZeroC.Ice
@@ -13,35 +13,39 @@ namespace ZeroC.Ice
         /// <summary>Shuts down this communicator's server functionality. This triggers the disposal of all object
         /// adapters. After this method returns, no new requests are processed. However, requests that have been started
         /// before ShutdownAsync was called might still be active until the returned task completes.</summary>
-        public async Task ShutdownAsync()
+        public Task ShutdownAsync()
         {
             lock (_mutex)
             {
-                // _shutdownSemaphore != null means "shutdown in progress". Once shutdown is in progress, other methods
+                // _shutdownTask != null means "shutdown in progress". Once shutdown is in progress, other methods
                 // cannot modify _adapters.
-                _shutdownSemaphore ??= new SemaphoreSlim(1, 1);
                 _waitForShutdownCompletionSource ??= new TaskCompletionSource<object?>();
+                _shutdownTask ??= PerformShutdownAsync();
+                return _shutdownTask;
             }
 
-            // The first call that acquires the semaphore is the one that calls DisposeAsync on the adapters.
-            await _shutdownSemaphore.WaitAsync().ConfigureAwait(false);
-
-            try
+            async Task PerformShutdownAsync()
             {
-                // _adapters can only be changed by the first call that acquires the semaphore.
-                await Task.WhenAll(_adapters.Select(adapter => adapter.DisposeAsync().AsTask())).ConfigureAwait(false);
-            }
-            finally
-            {
-                // Prevent other calls that are waiting on the semaphore from calling DisposeAsync again on the
-                // adapters.
-                _adapters.Clear();
+                // Make sure the code after Yield does not execute synchronously with _mutex locked.
+                await Task.Yield();
 
-                _shutdownSemaphore.Release();
+                Debug.Assert(_shutdownTask != null);
 
-                // This must be called after releasing the semaphore since the continuation can run synchronously and
-                // (try to) acquire the semaphore.
-                _waitForShutdownCompletionSource.TrySetResult(null);
+                try
+                {
+                    // _adapters can only be updated when _shutdownTask == null
+                    await Task.WhenAll(_adapters.Select(adapter => adapter.DisposeAsync().AsTask())).
+                        ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.Assert(false, $"{ex}");
+                }
+                finally
+                {
+                    _adapters.Clear();
+                    _waitForShutdownCompletionSource.TrySetResult(null);
+                }
             }
         }
 
@@ -58,13 +62,13 @@ namespace ZeroC.Ice
         /// of a server, and then perform some cleanup work before calling <see cref="DisposeAsync"/> on the
         /// communicator. The application can make remote invocations using a communicator that is shut down but not
         /// disposed.</summary>
-        public async Task WaitForShutdownAsync()
+        public Task WaitForShutdownAsync()
         {
             lock (_mutex)
             {
                 _waitForShutdownCompletionSource ??= new TaskCompletionSource<object?>();
+                return _waitForShutdownCompletionSource.Task;
             }
-            await _waitForShutdownCompletionSource.Task.ConfigureAwait(false);
         }
 
         /// <summary>Creates a new nameless object adapter. Such an object adapter has no configuration and can be
@@ -85,7 +89,7 @@ namespace ZeroC.Ice
                 {
                     throw new CommunicatorDisposedException();
                 }
-                if (_shutdownSemaphore != null)
+                if (_shutdownTask != null)
                 {
                     throw new InvalidOperationException("ShutdownAsync has been called on this communicator");
                 }
@@ -228,7 +232,7 @@ namespace ZeroC.Ice
             // Called by the object adapter to remove itself once destroyed.
             lock (_mutex)
             {
-                if (_shutdownSemaphore == null)
+                if (_shutdownTask == null)
                 {
                     _adapters.Remove(adapter);
                     if (adapter.Name.Length > 0)
@@ -257,7 +261,7 @@ namespace ZeroC.Ice
                 {
                     throw new CommunicatorDisposedException();
                 }
-                if (_shutdownSemaphore != null)
+                if (_shutdownTask != null)
                 {
                     throw new InvalidOperationException("ShutdownAsync has been called on this communicator");
                 }
