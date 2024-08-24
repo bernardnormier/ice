@@ -52,6 +52,8 @@ public class AllTests : global::Test.AllTests
         Test.TimeoutPrx timeout = Test.TimeoutPrxHelper.createProxy(communicator, sref);
 
         var output = helper.getWriter();
+
+        /*
         output.Write("testing connect timeout... ");
         output.Flush();
         {
@@ -88,6 +90,26 @@ public class AllTests : global::Test.AllTests
             {
                 test(false);
             }
+        }
+        output.WriteLine("ok");
+        */
+
+        output.Write("testing connect after hold-induced connect timeout... ");
+        {
+            var p = timeout;
+            controller.holdAdapter(-1);
+            p = Test.TimeoutPrxHelper.uncheckedCast(p.ice_connectionId("connection-10"));
+            try
+            {
+                await p.opAsync();
+                test(false);
+            }
+            catch (ConnectTimeoutException)
+            {
+                // Expected.
+            }
+            controller.resumeAdapter();
+            await p.opAsync(); // should work now
         }
         output.WriteLine("ok");
 

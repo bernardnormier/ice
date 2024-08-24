@@ -11,7 +11,7 @@ namespace Ice.timeout
             //
             // For this test, we want to disable retries.
             //
-            properties.setProperty("Ice.RetryIntervals", "-1");
+            // properties.setProperty("Ice.RetryIntervals", "-1");
 
             properties.setProperty("Ice.Connection.Client.ConnectTimeout", "1");
             properties.setProperty("Ice.Connection.Client.CloseTimeout", "1");
