@@ -11,7 +11,7 @@ namespace Ice.timeout
             //
             // For this test, we want to disable retries.
             //
-            // properties.setProperty("Ice.RetryIntervals", "-1");
+            properties.setProperty("Ice.RetryIntervals", "-1");
 
             properties.setProperty("Ice.Connection.Client.ConnectTimeout", "1");
             properties.setProperty("Ice.Connection.Client.CloseTimeout", "1");
@@ -19,7 +19,7 @@ namespace Ice.timeout
             //
             // This test kills connections, so we don't want warnings.
             //
-            properties.setProperty("Ice.Warn.Connections", "0");
+            // properties.setProperty("Ice.Warn.Connections", "0");
 
             using var communicator = initialize(properties);
             await AllTests.allTests(this);

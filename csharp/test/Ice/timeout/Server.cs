@@ -10,7 +10,7 @@ namespace Ice.timeout
             //
             // This test kills connections, so we don't want warnings.
             //
-            properties.setProperty("Ice.Warn.Connections", "0");
+            // properties.setProperty("Ice.Warn.Connections", "0");
 
             using (var communicator = initialize(properties))
             {
@@ -27,6 +27,7 @@ namespace Ice.timeout
                 controllerAdapter.activate();
                 serverReady();
                 communicator.waitForShutdown();
+                Console.WriteLine("server shutdown");
             }
         }
 
