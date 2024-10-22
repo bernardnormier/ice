@@ -246,6 +246,12 @@ ReplicaSessionI::receivedUpdate(TopicName topicName, int serial, string failure,
 void
 ReplicaSessionI::destroy(const Ice::Current&)
 {
+    destroy();
+}
+
+void
+ReplicaSessionI::destroy()
+{
     destroyImpl(false);
 }
 

@@ -18,6 +18,8 @@
 #include "Topics.h"
 #include "WellKnownObjectsManager.h"
 
+#include <iostream>
+
 using namespace std;
 using namespace IceGrid;
 
@@ -91,10 +93,32 @@ InternalRegistryI::registerReplica(
         throw Ice::MarshalException{__FILE__, __LINE__, os.str()};
     }
 
+    if (_registry->getName() != "Master")
+    {
+        throw PermissionDeniedException{"registerReplica was called on replica " + _registry->getName()};
+    }
+
     try
     {
-        auto s = ReplicaSessionI::create(_database, _wellKnownObjects, info, std::move(*prx), _replicaSessionTimeout);
-        _reaper->add(make_shared<SessionReapable<ReplicaSessionI>>(logger, s), _replicaSessionTimeout);
+        shared_ptr<ReplicaSessionI> s =
+            ReplicaSessionI::create(_database, _wellKnownObjects, info, std::move(*prx), _replicaSessionTimeout);
+
+        current.con->setCloseCallback(
+            [s](const Ice::ConnectionPtr&)
+            {
+                cout << "******** destroying replica session " << s->getProxy()->ice_toString() << endl;
+                // TODO: make sure destroy is non-blocking.
+                // TODO: make destroy noexcept or catch/ignore destroy exceptions?
+                try
+                {
+                    s->destroy();
+                }
+                catch (const std::exception& ex)
+                {
+                    cout << "*********** destroy exception: " << ex.what() << endl;
+                }
+                cout << "******** replica session destroyed " << s->getProxy()->ice_toString() << endl;
+            });
         return s->getProxy();
     }
     catch (const Ice::ObjectAdapterDestroyedException&)

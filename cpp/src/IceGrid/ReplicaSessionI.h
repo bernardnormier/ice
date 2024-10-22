@@ -35,6 +35,8 @@ namespace IceGrid
         void receivedUpdate(TopicName, int, std::string, const Ice::Current&) override;
         void destroy(const Ice::Current&) override;
 
+        void destroy();
+
         std::chrono::steady_clock::time_point timestamp() const;
         void shutdown();
 
