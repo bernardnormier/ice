@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="../../ZeroC.Ice.Slice.Tools.Cpp/ZeroC.Ice.Slice.Tools.Cpp.props"/>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -1052,4 +1053,5 @@
     </PropertyGroup>
     <Error Condition="!Exists('..\..\..\..\msbuild\packages\ZeroC.Bzip2.1.0.6\build\native\ZeroC.Bzip2.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\..\msbuild\packages\ZeroC.Bzip2.1.0.6\build\native\ZeroC.Bzip2.targets'))" />
   </Target>
+  <Import Project="../../ZeroC.Ice.Slice.Tools.Cpp/ZeroC.Ice.Slice.Tools.Cpp.targets"/>
 </Project>
