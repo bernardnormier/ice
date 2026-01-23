@@ -21,11 +21,11 @@
     <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
     <Import Project="$(MSBuildThisFileDirectory)\..\..\config\Ice.common.targets" />
 
-    <!-- Restore NuGet packages. -->
+     <!-- Restore NuGet packages. -->
     <Target Name="NuGetRestore" DependsOnTargets="GetNuGet">
         <MSBuild
-            Projects="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.slnx"
-            Properties="Platform=Any CPU"
+            Projects="ice.slnx"
+            Properties="Configuration=$(Configuration);Platform=$(Platform)"
             Targets="Restore" />
         <Exec Command="$(NuGetExe) restore $(MSBuildThisFileDirectory)ice.slnx"/>
     </Target>
@@ -44,14 +44,6 @@
             </PropertyGroup>
 
             <ItemGroup>
-                <!-- Tools Solution in Release and Debug -->
-                <ToolsSolution Include="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.slnx">
-                    <Properties>Configuration=Debug;Platform=Any CPU</Properties>
-                </ToolsSolution>
-                <ToolsSolution Include="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.slnx">
-                    <Properties>Configuration=Release;Platform=Any CPU</Properties>
-                </ToolsSolution>
-
                 <!-- Ice for C++ configurations -->
                 <DistSolution Include="ice.slnx">
                     <Properties>Configuration=Debug;Platform=Win32</Properties>
@@ -71,17 +63,8 @@
             <PropertyGroup>
                 <DefaultBuild>$(Platform)|$(Configuration)</DefaultBuild>
             </PropertyGroup>
-            <ItemGroup>
-                <ToolsSolution Include="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.slnx">
-                    <Properties>Configuration=$(Configuration);Platform=Any CPU</Properties>
-                </ToolsSolution>
-            </ItemGroup>
             <!-- Ice for C++ configurations -->
             <ItemGroup>
-                <DistSolution Include="ice.slnx">
-                    <Properties>Configuration=$(Configuration);Platform=$(Platform)</Properties>
-                </DistSolution>
-
                 <TestSolution Include="$(IceTestSolution)">
                     <Properties>Configuration=$(Configuration);Platform=$(Platform)</Properties>
                 </TestSolution>
@@ -152,17 +135,17 @@
               DestinationFiles="ZeroC.Ice.Cpp\build\native\ZeroC.Ice.Cpp.targets" />
 
         <!-- Copy Ice Tools files to the NuGet package -->
-        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\bin\$(Configuration)\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll"
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\src\ZeroC.Ice.Slice.Tools.Cpp\bin\$(Configuration)\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll"
               DestinationFiles="ZeroC.Ice.Cpp\tasks\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll" />
-        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.props"
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\src\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.props"
               DestinationFiles="ZeroC.Ice.Cpp\build\ZeroC.Ice.Slice.Tools.Cpp.props" />
-        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.targets"
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\src\ZeroC.Ice.Slice.Tools.Cpp\ZeroC.Ice.Slice.Tools.Cpp.targets"
               DestinationFiles="ZeroC.Ice.Cpp\build\ZeroC.Ice.Slice.Tools.Cpp.targets" />
-        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\ProjectItemsSchema.xaml"
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\src\ZeroC.Ice.Slice.Tools.Cpp\ProjectItemsSchema.xaml"
               DestinationFolder="ZeroC.Ice.Cpp\build\" />
-        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\SliceCompile.Cpp.File.xaml"
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\src\ZeroC.Ice.Slice.Tools.Cpp\SliceCompile.Cpp.File.xaml"
               DestinationFolder="ZeroC.Ice.Cpp\build\" />
-        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\tools\ZeroC.Ice.Slice.Tools.Cpp\SliceCompile.Cpp.xaml"
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\src\ZeroC.Ice.Slice.Tools.Cpp\SliceCompile.Cpp.xaml"
               DestinationFolder="ZeroC.Ice.Cpp\build\" />
 
         <Exec Command="$(NuGetExe) pack -NoPackageAnalysis -NonInteractive -Version $(PackageVersion)"

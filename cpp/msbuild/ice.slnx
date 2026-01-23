@@ -133,4 +133,7 @@
   <Project Path="../src/slice2swift/msbuild/slice2swift.vcxproj">
     <BuildDependency Project="../src/Slice/msbuild/slice.vcxproj" />
   </Project>
+  <Project Path="../src/ZeroC.Ice.Slice.Tools.Cpp/ZeroC.Ice.Slice.Tools.Cpp.csproj">
+    <BuildDependency Project="../src/slice2cpp/msbuild/slice2cpp.vcxproj" />
+  </Project>
 </Solution>

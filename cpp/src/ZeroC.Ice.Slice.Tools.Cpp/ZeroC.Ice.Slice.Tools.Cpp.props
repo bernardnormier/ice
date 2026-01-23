@@ -12,7 +12,8 @@
         <Otherwise>
             <PropertyGroup >
                 <!-- Use the Slice compiler from this Source distribution -->
-                <IceToolsPath>$(MSBuildThisFileDirectory)..\..\..\cpp\bin\x64\$(Configuration)</IceToolsPath>
+                <SliceToolsSourceBuild>true</SliceToolsSourceBuild>
+                <IceToolsPath>$(MSBuildThisFileDirectory)..\bin\x64\$(Configuration)</IceToolsPath>
             </PropertyGroup>
         </Otherwise>
     </Choose>

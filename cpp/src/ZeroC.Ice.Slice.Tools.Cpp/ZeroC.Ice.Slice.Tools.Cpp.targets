@@ -16,9 +16,9 @@
                 <SliceToolsAssembly>$(MSBuildThisFileDirectory)..\tasks\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll</SliceToolsAssembly>
             </PropertyGroup>
         </When>
-        <When Condition="Exists('$(MSBuildThisFileDirectory)bin\Any CPU\$(Configuration)\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll')">
+        <When Condition="Exists('$(MSBuildThisFileDirectory)bin\$(Platform)\$(Configuration)\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll')">
             <PropertyGroup>
-                <SliceToolsAssembly>$(MSBuildThisFileDirectory)bin\Any CPU\$(Configuration)\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll</SliceToolsAssembly>
+                <SliceToolsAssembly>$(MSBuildThisFileDirectory)bin\$(Platform)\$(Configuration)\netstandard2.0\ZeroC.Ice.Slice.Tools.Cpp.dll</SliceToolsAssembly>
             </PropertyGroup>
         </When>
         <Otherwise>
@@ -28,6 +28,11 @@
             </PropertyGroup>
         </Otherwise>
     </Choose>
+
+    <ItemGroup Condition="'$(SliceToolsSourceBuild)' == 'true'">
+      <!-- Add a reference to the Tools project to ensure it's built before we use its tasks -->
+      <ProjectReference Include="$(MSBuildThisFileDirectory)ZeroC.Ice.Slice.Tools.Cpp.csproj" ReferenceOutputAssembly="false" />
+    </ItemGroup>
 
     <!-- Import the MSBuild tasks required to compile Slice files using the slice2cpp compiler. -->
     <UsingTask TaskName="ZeroC.Ice.Slice.Tools.Cpp.Slice2CppTask" AssemblyFile="$(SliceToolsAssembly)"/>
@@ -55,9 +60,6 @@
 
     <Target Name="SliceCompile" BeforeTargets="CLCompile"
             Condition="@(SliceCompile) != ''">
-
-        <Error Text="IceToolsPath is set to a non-existing directory: `$(IceToolsPath)'. Did you forget to build the slice2cpp compiler?"
-           Condition="!Exists('$(IceToolsPath)')" />
 
         <!--
             Create the output directories
