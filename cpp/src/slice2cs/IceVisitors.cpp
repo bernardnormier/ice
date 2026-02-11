@@ -345,6 +345,7 @@ Slice::Ice::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
 
     _out << sp;
     writeDocComment(p, "class");
+    emitObsoleteAttribute(p);
     _out << nl << "[Ice.SliceTypeId(\"" << p->scoped() << "\")]";
     if (p->compactId() != -1)
     {
