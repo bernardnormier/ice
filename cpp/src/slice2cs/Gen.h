@@ -11,7 +11,7 @@ namespace Slice
     class Gen final
     {
     public:
-        Gen(const std::string&, const std::string&, bool);
+        Gen(const std::string& base, const std::string& dir, bool icerpc, bool enableAnalysis);
         Gen(const Gen&) = delete;
         ~Gen();
 
@@ -19,6 +19,7 @@ namespace Slice
 
     private:
         IceInternal::Output _out;
+        bool _icerpc;
         bool _enableAnalysis;
 
         void printHeader();

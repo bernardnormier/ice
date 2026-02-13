@@ -8,13 +8,15 @@
 #include "CsUtil.h"
 #include "Ice/StringUtil.h"
 #include "IceVisitors.h"
+#include "IceRpcVisitors.h"
 
 using namespace std;
 using namespace Slice;
 using namespace Slice::Csharp;
 using namespace IceInternal;
 
-Slice::Gen::Gen(const string& base, const string& dir, bool enableAnalysis) : _enableAnalysis(enableAnalysis)
+Slice::Gen::Gen(const string& base, const string& dir, bool icerpc, bool enableAnalysis)
+    : _icerpc(icerpc), _enableAnalysis(enableAnalysis)
 {
     string fileBase = base;
     string::size_type pos = base.find_last_of("/\\");
@@ -46,9 +48,6 @@ Slice::Gen::Gen(const string& base, const string& dir, bool enableAnalysis) : _e
     _out << sp;
     _out << nl << "#nullable enable";
     _out << sp;
-    _out << nl << "[assembly:Ice.Slice(\"" << fileBase << ".ice\")]";
-
-    _out << sp;
 
     if (_enableAnalysis)
     {
@@ -57,6 +56,7 @@ Slice::Gen::Gen(const string& base, const string& dir, bool enableAnalysis) : _e
         _out << nl << "#pragma warning disable SA1611 // The documentation for parameter x is missing";
 
         _out << nl << "#pragma warning disable CA1041 // Provide a message for the ObsoleteAttribute that marks ...";
+
         _out << nl << "#pragma warning disable CA1068 // Cancellation token as last parameter";
         _out << nl << "#pragma warning disable CA1725 // Change parameter name istr_ to istr in order to match ...";
 
@@ -71,6 +71,19 @@ Slice::Gen::Gen(const string& base, const string& dir, bool enableAnalysis) : _e
     _out << nl << "#pragma warning disable CS0612 // Type or member is obsolete";
     _out << nl << "#pragma warning disable CS0618 // Type or member is obsolete";
     _out << nl << "#pragma warning disable CS0619 // Type or member is obsolete";
+
+    if (_icerpc)
+    {
+        _out << sp;
+        _out << nl << "using ZeroC.Slice;";
+        _out << nl << "using IceRpc.Slice;";
+        _out << sp;
+        _out << nl << "[assembly:Slice(\"" << fileBase << ".ice\")]";
+    }
+    else
+    {
+        _out << nl << "[assembly:Ice.Slice(\"" << fileBase << ".ice\")]";
+    }
 }
 
 Slice::Gen::~Gen()
@@ -87,19 +100,27 @@ Slice::Gen::generate(const UnitPtr& p)
 {
     Slice::validateCsMetadata(p);
 
-    Slice::Ice::TypesVisitor typesVisitor(_out);
-    p->visit(&typesVisitor);
+    if (_icerpc)
+    {
+        Slice::IceRpc::TypesVisitor typesVisitor(_out);
+        p->visit(&typesVisitor);
+    }
+    else
+    {
+        Slice::Ice::TypesVisitor typesVisitor(_out);
+        p->visit(&typesVisitor);
 
-    Slice::Ice::ResultVisitor resultVisitor(_out);
-    p->visit(&resultVisitor);
+        Slice::Ice::ResultVisitor resultVisitor(_out);
+        p->visit(&resultVisitor);
 
-    // Default skeleton.
-    Slice::Ice::SkeletonVisitor skeletonVisitor(_out, false);
-    p->visit(&skeletonVisitor);
+        // Default skeleton.
+        Slice::Ice::SkeletonVisitor skeletonVisitor(_out, false);
+        p->visit(&skeletonVisitor);
 
-    // Async skeleton.
-    Slice::Ice::SkeletonVisitor asyncSkeletonVisitor(_out, true);
-    p->visit(&asyncSkeletonVisitor);
+        // Async skeleton.
+        Slice::Ice::SkeletonVisitor asyncSkeletonVisitor(_out, true);
+        p->visit(&asyncSkeletonVisitor);
+    }
 }
 
 void
