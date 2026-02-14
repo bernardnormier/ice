@@ -7,8 +7,8 @@
 #include "CsMetadataValidator.h"
 #include "CsUtil.h"
 #include "Ice/StringUtil.h"
-#include "IceVisitors.h"
 #include "IceRpcVisitors.h"
+#include "IceVisitors.h"
 
 using namespace std;
 using namespace Slice;
@@ -16,7 +16,8 @@ using namespace Slice::Csharp;
 using namespace IceInternal;
 
 Slice::Gen::Gen(const string& base, const string& dir, bool icerpc, bool enableAnalysis)
-    : _icerpc(icerpc), _enableAnalysis(enableAnalysis)
+    : _icerpc(icerpc),
+      _enableAnalysis(enableAnalysis)
 {
     string fileBase = base;
     string::size_type pos = base.find_last_of("/\\");

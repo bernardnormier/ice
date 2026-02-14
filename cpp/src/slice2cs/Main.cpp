@@ -171,8 +171,8 @@ compile(const vector<string>& argv)
         try
         {
             preprocessor = Preprocessor::create(argv[0], fileName, preprocessorArgs);
-            FILE* preprocessedHandle = icerpc ?
-                preprocessor->preprocess("-D__SLICE2CS__ -D__ICERPC__") : preprocessor->preprocess("-D__SLICE2CS__");
+            FILE* preprocessedHandle = icerpc ? preprocessor->preprocess("-D__SLICE2CS__ -D__ICERPC__")
+                                              : preprocessor->preprocess("-D__SLICE2CS__");
 
             if (preprocessedHandle == nullptr)
             {

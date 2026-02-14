@@ -20,9 +20,20 @@ namespace Slice::IceRpc
 
         bool visitStructStart(const StructPtr&) final;
         void visitStructEnd(const StructPtr&) final;
+
+        bool visitClassDefStart(const ClassDefPtr&) final;
+        void visitClassDefEnd(const ClassDefPtr&) final;
+
         void visitDataMember(const DataMemberPtr&) final;
 
         void visitEnum(const EnumPtr&) final;
+
+    private:
+        bool writePrimaryConstructor(
+            const ContainedPtr& p,
+            const DataMemberList& fields,
+            const DataMemberList& allBaseFields,
+            const std::string& kind);
     };
 }
 

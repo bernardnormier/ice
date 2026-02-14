@@ -1,8 +1,8 @@
 // Copyright (c) ZeroC, Inc.
 
 #include "IceRpcCsUtil.h"
-#include "CsUtil.h"
 #include "../Slice/Util.h"
+#include "CsUtil.h"
 
 #include <cassert>
 
@@ -28,6 +28,21 @@ namespace
     {
         BuiltinPtr builtin = dynamic_pointer_cast<Builtin>(type);
         return builtin && builtin->kind() == Builtin::KindString;
+    }
+
+    // The TagFormat is the OptionalFormat + the OptimizedVSize enumerator.
+    [[nodiscard]] string getTagFormat(const TypePtr& type)
+    {
+        SequencePtr seq = dynamic_pointer_cast<Sequence>(type);
+        string tagFormat = type->getOptionalFormat();
+        if (tagFormat == "VSize")
+        {
+            if (isString(type) || (seq && seq->type()->minWireSize() == 1))
+            {
+                tagFormat = "OptimizedVSize";
+            }
+        }
+        return tagFormat;
     }
 
     void castToNestedFieldType(Output& out, const TypePtr& type, const string& ns)
@@ -61,9 +76,8 @@ Slice::Csharp::isCsValueType(const TypePtr& type)
         }
     }
 
-    return dynamic_pointer_cast<Enum>(type) ||
-        dynamic_pointer_cast<Struct>(type) ||
-        dynamic_pointer_cast<InterfaceDecl>(type);
+    return dynamic_pointer_cast<Enum>(type) || dynamic_pointer_cast<Struct>(type) ||
+           dynamic_pointer_cast<InterfaceDecl>(type);
 }
 
 string
@@ -113,12 +127,14 @@ Slice::Csharp::csFieldType(const TypePtr& type, const string& ns, bool optional)
                csFieldType(d->valueType(), ns) + ">";
     }
 
+    // Struct, Enum
     ContainedPtr contained = dynamic_pointer_cast<Contained>(type);
     if (contained)
     {
         return getUnqualified(contained, ns);
     }
 
+    assert(false);
     return "???";
 }
 
@@ -187,10 +203,27 @@ Slice::Csharp::csOutgoingParamType(const TypePtr& type, const string& ns, bool o
     if (d)
     {
         return "global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<" +
-            csFieldType(d->keyType(), ns) + ", " + csFieldType(d->valueType(), ns) + ">>" + (optional ? "?" : "");
+               csFieldType(d->keyType(), ns) + ", " + csFieldType(d->valueType(), ns) + ">>" + (optional ? "?" : "");
     }
 
     return csFieldType(type, ns, optional);
+}
+
+string
+Slice::Csharp::csType(const TypePtr& type, const string& ns, TypeContext context, bool optional)
+{
+    switch (context)
+    {
+        case TypeContext::Field:
+            return csFieldType(type, ns, optional);
+        case TypeContext::IncomingParam:
+            return csIncomingParamType(type, ns, optional);
+        case TypeContext::OutgoingParam:
+            return csOutgoingParamType(type, ns, optional);
+        default:
+            assert(false);
+            return "???";
+    }
 }
 
 bool
@@ -211,12 +244,26 @@ Slice::Csharp::csRequired(const DataMemberPtr& field)
 }
 
 void
-Slice::Csharp::encodeField(Output& out, const string& fieldName, const TypePtr& type, const string& ns, TypeContext context)
+Slice::Csharp::encodeField(
+    Output& out,
+    const string& fieldName,
+    const TypePtr& type,
+    const string& ns,
+    TypeContext context)
 {
     assert(type);
 
-    static const char* builtinTable[] =
-        {"UInt8", "Bool", "Int16", "Int32", "Int64", "Float", "Double", "String", "NullableServiceAddress", "NullableClass"};
+    static const char* builtinTable[] = {
+        "UInt8",
+        "Bool",
+        "Int16",
+        "Int32",
+        "Int64",
+        "Float",
+        "Double",
+        "String",
+        "NullableServiceAddress",
+        "NullableClass"};
 
     BuiltinPtr builtin = dynamic_pointer_cast<Builtin>(type);
     if (builtin)
@@ -242,7 +289,7 @@ Slice::Csharp::encodeField(Output& out, const string& fieldName, const TypePtr& 
     InterfaceDeclPtr proxy = dynamic_pointer_cast<InterfaceDecl>(type);
     if (proxy)
     {
-        out << getUnqualified(proxy, ns) << "ProxySliceEncoderExtensions.EncodeNullable"
+        out << nl << getUnqualified(proxy, ns) << "ProxySliceEncoderExtensions.EncodeNullable"
             << removeEscapePrefix(proxy->mappedName()) << "Proxy(ref encoder, " << fieldName << ");";
         return;
     }
@@ -250,7 +297,8 @@ Slice::Csharp::encodeField(Output& out, const string& fieldName, const TypePtr& 
     EnumPtr en = dynamic_pointer_cast<Enum>(type);
     if (en)
     {
-        out << nl << "encoder.EncodeSize((int)" << fieldName << ");";
+        out << nl << getUnqualified(en, ns) << "SliceEncoderExtensions.Encode" << removeEscapePrefix(en->mappedName())
+            << "(ref encoder, " << fieldName << ");";
         return;
     }
 
@@ -301,26 +349,28 @@ Slice::Csharp::encodeField(Output& out, const string& fieldName, const TypePtr& 
         encodeField(out, "value", valueType, ns, TypeContext::Field);
         out << eb << ");";
         out.dec();
+        return;
     }
+
+    assert(false);
 }
 
 void
-Slice::Csharp::encodeOptionalField(Output& out, int tag, const string& fieldName, const TypePtr& type, const string&, TypeContext context)
+Slice::Csharp::encodeOptionalField(
+    Output& out,
+    int tag,
+    const string& fieldName,
+    const TypePtr& type,
+    const string& ns,
+    TypeContext context)
 {
     assert(type);
 
     SequencePtr seq = dynamic_pointer_cast<Sequence>(type);
     bool readOnlyMemory = seq && hasFixedSizeBuiltinElements(seq) && !seq->hasMetadata("cs:generic") &&
-        context == TypeContext::OutgoingParam;
-    string optionalFormat = type->getOptionalFormat();
+                          context == TypeContext::OutgoingParam;
 
-    if (optionalFormat == "VSize")
-    {
-        if (isString(type) || (seq && seq->type()->minWireSize() == 1))
-        {
-            optionalFormat = "OptimizedVSize";
-        }
-    }
+    string tagFormat = getTagFormat(type);
 
     if (readOnlyMemory)
     {
@@ -336,12 +386,19 @@ Slice::Csharp::encodeOptionalField(Output& out, int tag, const string& fieldName
     }
     out << sb;
 
-    if (optionalFormat == "VSize")
+    if (tagFormat == "VSize" && ((seq && !readOnlyMemory) || dynamic_pointer_cast<Dictionary>(type)))
     {
-        // Call VSize overload. Compute and transmit the size for double-checking.
-        out << nl << "encoder.EncodeTagged(";
-        out.inc();
-        out << nl << tag << ",";
+        out << nl << "int count_ = " << fieldName << ".Count();"; // may be slow
+        out << sp;
+    }
+
+    out << nl << "encoder.EncodeTagged(";
+    out.inc();
+    out << nl << "tag: " << tag << ",";
+
+    if (tagFormat == "VSize")
+    {
+        // "size" overload
         out << nl << "size: ";
         if (auto st = dynamic_pointer_cast<Struct>(type))
         {
@@ -352,17 +409,33 @@ Slice::Csharp::encodeOptionalField(Output& out, int tag, const string& fieldName
             out << "encoder.GetSizeLength(" << fieldName << ".Length) + " << seq->type()->minWireSize() << " * "
                 << fieldName << ".Length";
         }
+        else if (seq)
+        {
+            out << "encoder.GetSizeLength(count_) + " << seq->type()->minWireSize() << " * count_";
+        }
+        else if (auto dict = dynamic_pointer_cast<Dictionary>(type))
+        {
+            out << "encoder.GetSizeLength(count_) + "
+                << (dict->keyType()->minWireSize() + dict->valueType()->minWireSize()) << " * count_";
+        }
+        else
+        {
+            // No other VSize.
+            assert(false);
+        }
+        out << ",";
     }
     else
     {
-
+        // TagFormat overload
+        out << nl << "TagFormat." << tagFormat << ",";
     }
 
-    out << nl << "encoder.EncodeTagged(";
-    out.inc();
-    out << nl << tag << ",";
-    out << nl << type->getOptionalFormat() << ",";
-    out << nl << fieldName << (isCsValueType(type) ? ".Value" : "!");
+    out << nl << fieldName << (isCsValueType(type) ? ".Value" : "") << ",";
+    out << nl << "(ref SliceEncoder encoder, " << csType(type, ns, context) << " value) => ";
+    out << sb;
+    encodeField(out, "value", type, ns, context);
+    out << eb;
     out << ");";
     out.dec();
 
@@ -370,15 +443,22 @@ Slice::Csharp::encodeOptionalField(Output& out, int tag, const string& fieldName
     // else, don't encode anything for null.
 }
 
-
-
 void
 Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, TypeContext)
 {
     assert(type);
 
-    static const char* builtinTable[] =
-        {"UInt8", "Bool", "Int16", "Int32", "Int64", "Float", "Double", "String", "NullableServiceAddress", "Class<SliceClass>"};
+    static const char* builtinTable[] = {
+        "UInt8",
+        "Bool",
+        "Int16",
+        "Int32",
+        "Int64",
+        "Float",
+        "Double",
+        "String",
+        "NullableServiceAddress",
+        "Class<SliceClass>"};
 
     BuiltinPtr builtin = dynamic_pointer_cast<Builtin>(type);
     if (builtin)
@@ -397,7 +477,7 @@ Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, T
     StructPtr st = dynamic_pointer_cast<Struct>(type);
     if (st)
     {
-        out <<  "new " << getUnqualified(st, ns) << "(ref decoder)";
+        out << "new " << getUnqualified(st, ns) << "(ref decoder)";
         return;
     }
 
@@ -413,37 +493,46 @@ Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, T
     EnumPtr en = dynamic_pointer_cast<Enum>(type);
     if (en)
     {
-        out << getUnqualified(en, ns) << "IntExtensions.As" << removeEscapePrefix(en->mappedName())
-            << "(decoder.DecodeSize())";
+        out << getUnqualified(en, ns) << "SliceDecoderExtensions.Decode" << removeEscapePrefix(en->mappedName())
+            << "(ref decoder)";
         return;
     }
 
     SequencePtr seq = dynamic_pointer_cast<Sequence>(type);
     if (seq)
     {
-        // TODO: review the Rust code, which is much more complex.
-
         bool hasGenericMetadata = seq->hasMetadata("cs:generic");
 
-        if (hasGenericMetadata)
+        // The concrete type we create.
+        string csSeq = csIncomingParamType(seq, ns);
+
+        if (hasFixedSizeBuiltinElements(seq))
         {
-            // The concrete type we create.
-            string csSeq = csIncomingParamType(seq, ns);
-            out << "decoder.DecodeSequence(sequenceFactory: size => new " << csSeq << "(size));";
-        }
-        else if (hasFixedSizeBuiltinElements(seq))
-        {
-            out << "decoder.DecodeSequence<" << csFieldType(seq->type(), ns) << ">(";
+            if (hasGenericMetadata)
+            {
+                out << "new " << csSeq << "(";
+            }
+
+            out << "decoder.DecodeSequence<" << Slice::Csharp::csFieldType(seq->type(), ns) << ">(";
             if (isBool(seq->type()))
             {
-               out << "checkElement: SliceDecoder.CheckBoolValue";
+                out << "checkElement: SliceDecoder.CheckBoolValue";
             }
             out << ")";
+
+            if (hasGenericMetadata)
+            {
+                out << ")";
+            }
         }
         else
         {
             out << "decoder.DecodeSequence(";
             out.inc();
+            if (hasGenericMetadata)
+            {
+                out << nl << "sequenceFactory: size => new " << csSeq << "(size),";
+            }
             out << nl << "(ref SliceDecoder decoder) => ";
             castToNestedFieldType(out, seq->type(), ns);
             decodeField(out, seq->type(), ns, TypeContext::Field);
@@ -473,5 +562,26 @@ Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, T
         decodeField(out, valueType, ns, TypeContext::Field);
         out << ")";
         out.dec();
+        return;
     }
+
+    assert(false);
+}
+
+void
+Slice::Csharp::decodeOptionalField(Output& out, int tag, const TypePtr& type, const string& ns, TypeContext context)
+{
+    out << "decoder.DecodeTagged(";
+    out.inc();
+    out << nl << "tag: " << tag << ",";
+    out << nl << "TagFormat." << getTagFormat(type) << ",";
+    out << nl << "(ref SliceDecoder decoder) => ";
+    out.inc();
+    out << nl;
+    decodeField(out, type, ns, context);
+    out << ",";
+    out.dec();
+    out << nl << "useTagEndMarker: " << (context == TypeContext::Field ? "true" : "false");
+    out << ")";
+    out.dec();
 }

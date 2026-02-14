@@ -47,54 +47,24 @@ Slice::IceRpc::TypesVisitor::visitStructStart(const StructPtr& p)
 void
 Slice::IceRpc::TypesVisitor::visitStructEnd(const StructPtr& p)
 {
-    string name = p->mappedName();
+    string escapedName = p->mappedName();
     string ns = getNamespace(p);
 
-    // Primary constructor with parameters for all fields.
-    _out << sp;
-    writeDocLine(_out, "summary", "Initializes a new instance of the <see cref=\"" + name + "\" /> struct.");
-
-    vector<string> ctorParams;
-    vector<string> ctorPropertyInits;
-    bool hasRequiredField = false;
-    for (const auto& field : p->dataMembers())
-    {
-        string paramName = field->customMappedName().value_or(toCamelCase(field->name()));
-        ctorParams.push_back(csFieldType(field->type(), getNamespace(p), field->optional()) + " " + paramName);
-        ctorPropertyInits.push_back("this." + field->mappedName() + " = " + paramName + ';');
-
-        if (csRequired(field))
-        {
-            hasRequiredField = true;
-        }
-    }
-
-    if (hasRequiredField)
-    {
-        _out << nl << "[global::System.Diagnostics.CodeAnalysis.SetsRequiredMembers]";
-    }
-
-    _out << nl << "public " << name << spar << ctorParams << epar;
-    _out << sb;
-    for (const auto& propertyInit : ctorPropertyInits)
-    {
-        _out << nl << propertyInit;
-    }
-    _out << eb;
+    bool hasRequiredField = writePrimaryConstructor(p, p->dataMembers(), {}, "struct");
 
     // Decoding constructor.
     _out << sp;
     writeDocLine(
         _out,
         "summary",
-        "Initializes a new instance of the <see cref=\"" + name + "\" /> struct from a SliceDecoder.");
+        "Initializes a new instance of the <see cref=\"" + escapedName + "\" /> struct from a SliceDecoder.");
 
     if (hasRequiredField)
     {
         _out << nl << "[global::System.Diagnostics.CodeAnalysis.SetsRequiredMembers]";
     }
 
-    _out << nl << "public " << name << "(ref SliceDecoder decoder)";
+    _out << nl << "public " << escapedName << "(ref SliceDecoder decoder)";
     _out << sb;
     for (const auto& field : p->dataMembers())
     {
@@ -106,16 +76,145 @@ Slice::IceRpc::TypesVisitor::visitStructEnd(const StructPtr& p)
 
     // Encode method.
     _out << sp;
-    writeDocLine(
-        _out,
-        "summary",
-        "Encodes the fields of this struct with a Slice encoder.");
+    writeDocLine(_out, "summary", "Encodes the fields of this struct with a Slice encoder.");
 
     _out << nl << "public void Encode(ref SliceEncoder encoder)";
     _out << sb;
     for (const auto& field : p->dataMembers())
     {
         encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+    }
+    _out << eb;
+
+    _out << eb;
+}
+
+bool
+Slice::IceRpc::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
+{
+    string ns = getNamespace(p);
+
+    _out << sp;
+    writeDocComment(p, "class");
+    emitObsoleteAttribute(p);
+    _out << nl << "[SliceTypeId(\"" << p->scoped() << "\")]";
+    if (p->compactId() != -1)
+    {
+        _out << nl << "[CompactSliceTypeId(" << p->compactId() << ")]";
+    }
+    _out << nl << "public partial class " << p->mappedName() << " : ";
+
+    ClassDefPtr base = p->base();
+    if (base)
+    {
+        _out << getUnqualified(base, ns);
+    }
+    else
+    {
+        _out << "SliceClass";
+    }
+    _out << sb;
+    return true;
+}
+
+void
+Slice::IceRpc::TypesVisitor::visitClassDefEnd(const ClassDefPtr& p)
+{
+    string escapedName = p->mappedName();
+    string ns = getNamespace(p);
+
+    if (!p->dataMembers().empty())
+    {
+        _out << sp;
+    }
+    _out << nl << "private static readonly string SliceTypeId = typeof(" << escapedName << ").GetSliceTypeId()!;";
+    if (p->compactId() != -1)
+    {
+        _out << nl << "private static readonly int CompactSliceTypeId = typeof(" << escapedName
+             << ").GetCompactSliceTypeId()!;";
+    }
+
+    if (!p->allDataMembers().empty())
+    {
+        DataMemberList allBaseFields;
+        if (p->base())
+        {
+            allBaseFields = p->base()->allDataMembers();
+        }
+
+        writePrimaryConstructor(p, p->dataMembers(), allBaseFields, "class");
+
+        // Public parameterless constructor.
+        _out << sp;
+        writeDocLine(_out, "summary", "Initializes a new instance of the <see cref=\"" + escapedName + "\" /> class.");
+        _out << nl << "public " << escapedName << "()";
+        _out << sb;
+        _out << eb;
+    }
+    // else, no need to generate any constructor.
+
+    _out << sp;
+    emitNonBrowsableAttribute();
+    _out << nl << "protected override void EncodeCore(ref SliceEncoder encoder)";
+    _out << sb;
+    _out << nl << "encoder.StartSlice(SliceTypeId";
+    if (p->compactId() != -1)
+    {
+        _out << ", CompactSliceTypeId";
+    }
+    _out << ");";
+    // Encode non-optional fields
+    for (const auto& field : p->dataMembers())
+    {
+        if (!field->optional())
+        {
+            encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+        }
+    }
+    // Encode optional fields
+    for (const auto& field : p->orderedOptionalDataMembers())
+    {
+        encodeOptionalField(_out, field->tag(), "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+    }
+
+    if (p->base())
+    {
+        _out << nl << "encoder.EndSlice(false);";
+        _out << nl << "base.EncodeCore(ref encoder);";
+    }
+    else
+    {
+        _out << nl << "encoder.EndSlice(true);"; // last slice
+    }
+    _out << eb;
+
+    _out << sp;
+    emitNonBrowsableAttribute();
+    _out << nl << "protected override void DecodeCore(ref SliceDecoder decoder)";
+    _out << sb;
+    _out << nl << "decoder.StartSlice();";
+    // Decode non-optional fields
+    for (const auto& field : p->dataMembers())
+    {
+        if (!field->optional())
+        {
+            _out << nl << "this." + field->mappedName() << " = ";
+            decodeField(_out, field->type(), ns, TypeContext::Field);
+            _out << ';';
+        }
+    }
+    // Decode optional fields
+    for (const auto& field : p->orderedOptionalDataMembers())
+    {
+        _out << nl << "this." + field->mappedName() << " = ";
+        decodeOptionalField(_out, field->tag(), field->type(), ns, TypeContext::Field);
+        _out << ';';
+    }
+
+    _out << nl << "decoder.EndSlice();";
+    if (p->base())
+    {
+        _out << nl << "base.DecodeCore(ref decoder);";
     }
     _out << eb;
 
@@ -175,14 +274,16 @@ Slice::IceRpc::TypesVisitor::visitEnum(const EnumPtr& p)
     }
     _out << eb;
 
+    //
+    // XxxIntExtensions
+    //
     _out << sp;
-    ostringstream classComment;
-    classComment << "Provides an extension method for creating " << getArticleFor(name)
-        << " <see cref=\"" << escapedName << "\" /> from an int.";
-    writeHelperDocComment(p, classComment.str(), "enum helper class");
+    ostringstream intExtensionsComment;
+    intExtensionsComment << "Provides an extension method for creating " << getArticleFor(name) << " <see cref=\""
+                         << escapedName << "\" /> from an int.";
+    writeHelperDocComment(p, intExtensionsComment.str(), "enum helper class");
     _out << nl << "public static class " << name << "IntExtensions";
     _out << sb;
-    _out << sp;
 
     // When the number of enumerators is smaller than the distance between the min and max
     // values, the values are not consecutive and we need to use a set to validate the value
@@ -193,7 +294,8 @@ Slice::IceRpc::TypesVisitor::visitEnum(const EnumPtr& p)
 
     if (useSet)
     {
-        _out << nl << "private static readonly global::System.Collections.Generic.HashSet<int> _enumeratorValues = new()";
+        _out << nl
+             << "private static readonly global::System.Collections.Generic.HashSet<int> _enumeratorValues = new()";
         _out.spar("{ ");
         for (const auto& enumerator : enumerators)
         {
@@ -216,11 +318,106 @@ Slice::IceRpc::TypesVisitor::visitEnum(const EnumPtr& p)
     }
     _out << "(" << escapedName << ")value :";
     _out.inc();
-    _out << nl
-        << "throw new global::System.IO.InvalidDataException($\"Invalid value {value} for enum "
-        << escapedName << ".\");";
+    _out << nl << "throw new global::System.IO.InvalidDataException($\"Invalid value {value} for enum " << escapedName
+         << ".\");";
     _out.dec();
     _out.dec();
     _out << eb;
+
+    //
+    // XxxSliceEncoderExtensions and XxxSliceDecoderExtensions
+    //
+    _out << sp;
+    ostringstream encoderExtensionsComment;
+    encoderExtensionsComment << "Provides an extension method for encoding " << getArticleFor(name) << " <see cref=\""
+                             << escapedName << "\" />.";
+    writeHelperDocComment(p, encoderExtensionsComment.str(), "enum helper class");
+    _out << nl << "public static class " << name << "SliceEncoderExtensions";
+    _out << sb;
+
+    // TODO: doc-comment
+    _out << nl << "public static void Encode" << name << "(this ref SliceEncoder encoder, " << escapedName
+         << " value) => encoder.EncodeSize((int)value);";
+    _out << eb;
+
+    _out << sp;
+    ostringstream decoderExtensionsComment;
+    decoderExtensionsComment << "Provides an extension method for decoding " << getArticleFor(name) << " <see cref=\""
+                             << escapedName << "\" />.";
+    writeHelperDocComment(p, decoderExtensionsComment.str(), "enum helper class");
+    _out << nl << "public static class " << name << "SliceDecoderExtensions";
+    _out << sb;
+
+    // TODO: doc-comment
+    _out << nl << "public static " << escapedName << " Decode" << name << "(this ref SliceDecoder decoder) => " << name
+         << "IntExtensions.As" << name << "(decoder.DecodeSize());";
+    _out << eb;
 }
 
+bool
+Slice::IceRpc::TypesVisitor::writePrimaryConstructor(
+    const ContainedPtr& p,
+    const DataMemberList& fields,
+    const DataMemberList& allBaseFields,
+    const string& kind)
+{
+    // Primary constructor with parameters for all fields.
+    string escapedName = p->mappedName();
+    string name = removeEscapePrefix(escapedName);
+    string ns = getNamespace(p);
+
+    _out << sp;
+    writeDocLine(
+        _out,
+        "summary",
+        "Initializes a new instance of the <see cref=\"" + escapedName + "\" /> " + kind + ".");
+
+    vector<string> ctorParams;
+    vector<string> baseParams;
+    vector<string> ctorPropertyInits;
+    bool hasRequiredField = false;
+
+    for (const auto& field : allBaseFields)
+    {
+        string paramName = field->customMappedName().value_or(toCamelCase(field->name()));
+        ctorParams.push_back(csFieldType(field->type(), ns, field->optional()) + " " + paramName);
+        if (csRequired(field))
+        {
+            hasRequiredField = true;
+        }
+        baseParams.push_back(paramName);
+    }
+
+    for (const auto& field : fields)
+    {
+        string paramName = field->customMappedName().value_or(toCamelCase(field->name()));
+        ctorParams.push_back(csFieldType(field->type(), ns, field->optional()) + " " + paramName);
+        if (csRequired(field))
+        {
+            hasRequiredField = true;
+        }
+
+        ctorPropertyInits.push_back("this." + field->mappedName() + " = " + paramName + ';');
+    }
+
+    if (hasRequiredField)
+    {
+        _out << nl << "[global::System.Diagnostics.CodeAnalysis.SetsRequiredMembers]";
+    }
+
+    _out << nl << "public " << name << spar << ctorParams << epar;
+    if (!baseParams.empty())
+    {
+        _out.inc();
+        _out << nl << ": base" << spar << baseParams << epar;
+        _out.dec();
+    }
+
+    _out << sb;
+    for (const auto& propertyInit : ctorPropertyInits)
+    {
+        _out << nl << propertyInit;
+    }
+    _out << eb;
+    return hasRequiredField;
+}
