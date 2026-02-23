@@ -24,9 +24,17 @@ namespace Slice::IceRpc
         bool visitClassDefStart(const ClassDefPtr&) final;
         void visitClassDefEnd(const ClassDefPtr&) final;
 
+        bool visitExceptionStart(const ExceptionPtr&) final;
+        void visitExceptionEnd(const ExceptionPtr&) final;
+
         void visitDataMember(const DataMemberPtr&) final;
 
         void visitEnum(const EnumPtr&) final;
+
+        // For proxies.
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) final;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) final;
+        void visitOperation(const OperationPtr&) final;
 
     private:
         bool writePrimaryConstructor(
@@ -34,6 +42,13 @@ namespace Slice::IceRpc
             const DataMemberList& fields,
             const DataMemberList& allBaseFields,
             const std::string& kind);
+
+        void writeEncodeDecode(
+            int compactId,
+            const std::string& ns,
+            bool hasBase,
+            const DataMemberList& fields,
+            const DataMemberList& allBaseFields);
     };
 }
 

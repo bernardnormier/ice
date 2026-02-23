@@ -15,6 +15,34 @@ using namespace Slice;
 using namespace Slice::Csharp;
 using namespace IceInternal;
 
+namespace
+{
+    // Returns paramName as-is or escaped if it conflicts with any of the parameter names in params.
+    string escapeParamName(string paramName, const ParameterList& params)
+    {
+        for (const auto& param : params)
+        {
+            if (param->mappedName() == paramName)
+            {
+                return paramName + "_";
+            }
+        }
+        return paramName;
+    }
+
+    string escapeCapitalizedParamName(string paramName, const ParameterList& params)
+    {
+        for (const auto& param : params)
+        {
+            if (toPascalCase(param->mappedName()) == paramName)
+            {
+                return paramName + "_";
+            }
+        }
+        return paramName;
+    }
+}
+
 Slice::IceRpc::TypesVisitor::TypesVisitor(IceInternal::Output& out) : CsVisitor(out) {}
 
 bool
@@ -153,73 +181,71 @@ Slice::IceRpc::TypesVisitor::visitClassDefEnd(const ClassDefPtr& p)
     }
     // else, no need to generate any constructor.
 
-    _out << sp;
-    emitNonBrowsableAttribute();
-    _out << nl << "protected override void EncodeCore(ref SliceEncoder encoder)";
-    _out << sb;
-    _out << nl << "encoder.StartSlice(SliceTypeId";
-    if (p->compactId() != -1)
-    {
-        _out << ", CompactSliceTypeId";
-    }
-    _out << ");";
-    // Encode non-optional fields
-    for (const auto& field : p->dataMembers())
-    {
-        if (!field->optional())
-        {
-            encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
-        }
-    }
-    // Encode optional fields
-    for (const auto& field : p->orderedOptionalDataMembers())
-    {
-        encodeOptionalField(_out, field->tag(), "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
-    }
-
-    if (p->base())
-    {
-        _out << nl << "encoder.EndSlice(false);";
-        _out << nl << "base.EncodeCore(ref encoder);";
-    }
-    else
-    {
-        _out << nl << "encoder.EndSlice(true);"; // last slice
-    }
-    _out << eb;
-
-    _out << sp;
-    emitNonBrowsableAttribute();
-    _out << nl << "protected override void DecodeCore(ref SliceDecoder decoder)";
-    _out << sb;
-    _out << nl << "decoder.StartSlice();";
-    // Decode non-optional fields
-    for (const auto& field : p->dataMembers())
-    {
-        if (!field->optional())
-        {
-            _out << nl << "this." + field->mappedName() << " = ";
-            decodeField(_out, field->type(), ns, TypeContext::Field);
-            _out << ';';
-        }
-    }
-    // Decode optional fields
-    for (const auto& field : p->orderedOptionalDataMembers())
-    {
-        _out << nl << "this." + field->mappedName() << " = ";
-        decodeOptionalField(_out, field->tag(), field->type(), ns, TypeContext::Field);
-        _out << ';';
-    }
-
-    _out << nl << "decoder.EndSlice();";
-    if (p->base())
-    {
-        _out << nl << "base.DecodeCore(ref decoder);";
-    }
-    _out << eb;
+    writeEncodeDecode(p->compactId(), ns, p->base() != nullptr, p->dataMembers(), p->orderedOptionalDataMembers());
 
     _out << eb;
 }
+
+bool
+Slice::IceRpc::TypesVisitor::visitExceptionStart(const ExceptionPtr& p)
+{
+    string ns = getNamespace(p);
+
+    _out << sp;
+    writeDocComment(p, "exception class");
+    emitObsoleteAttribute(p);
+    _out << nl << "[SliceTypeId(\"" << p->scoped() << "\")]";
+    _out << nl << "public partial class " << p->mappedName() << " : ";
+
+    ExceptionPtr base = p->base();
+    if (base)
+    {
+        _out << getUnqualified(base, ns);
+    }
+    else
+    {
+        _out << "SliceException";
+    }
+    _out << sb;
+    return true;
+}
+
+void
+Slice::IceRpc::TypesVisitor::visitExceptionEnd(const ExceptionPtr& p)
+{
+    string escapedName = p->mappedName();
+    string ns = getNamespace(p);
+
+    if (!p->dataMembers().empty())
+    {
+        _out << sp;
+    }
+    _out << nl << "private static readonly string SliceTypeId = typeof(" << escapedName << ").GetSliceTypeId()!;";
+
+    if (!p->allDataMembers().empty())
+    {
+        DataMemberList allBaseFields;
+        if (p->base())
+        {
+            allBaseFields = p->base()->allDataMembers();
+        }
+
+        writePrimaryConstructor(p, p->dataMembers(), allBaseFields, "exception class");
+
+        // Public parameterless constructor.
+        _out << sp;
+        writeDocLine(_out, "summary", "Initializes a new instance of the <see cref=\"" + escapedName + "\" /> exception class.");
+        _out << nl << "public " << escapedName << "()";
+        _out << sb;
+        _out << eb;
+    }
+    // else, no need to generate any constructor.
+
+    writeEncodeDecode(-1, ns, p->base() != nullptr, p->dataMembers(), p->orderedOptionalDataMembers());
+
+    _out << eb;
+}
+
 
 void
 Slice::IceRpc::TypesVisitor::visitDataMember(const DataMemberPtr& p)
@@ -355,6 +381,105 @@ Slice::IceRpc::TypesVisitor::visitEnum(const EnumPtr& p)
 }
 
 bool
+Slice::IceRpc::TypesVisitor::visitInterfaceDefStart(const InterfaceDefPtr& p)
+{
+    string ns = getNamespace(p);
+    string escapedName = p->mappedName();
+    string name = removeEscapePrefix(escapedName);
+
+    // Generate the client interface.
+    _out << sp;
+    writeDocComment(p, "client-side interface");
+    emitObsoleteAttribute(p);
+    _out << nl << "public partial interface I" << name;
+    if (!p->bases().empty())
+    {
+        _out << " : ";
+        _out.spar("");
+        for (const auto& base : p->bases())
+        {
+            _out << getUnqualified(base, ns, "I");
+        }
+        _out.epar("");
+    }
+
+    _out << sb;
+
+    for (const auto& operation : p->operations())
+    {
+        if (!isFirstElement(operation))
+        {
+            _out << sp;
+        }
+
+        // TODO: doc comment for operation
+        emitObsoleteAttribute(operation);
+        _out << nl << "global::System.Threading.Tasks.Task";
+        if (operation->returnsAnyValues())
+        {
+            ParameterList returnAndOutParams = operation->outParameters();
+            if (operation->returnType())
+            {
+                string returnParamName = escapeCapitalizedParamName("ReturnValue", returnAndOutParams);
+                returnAndOutParams.insert(returnAndOutParams.begin(), operation->returnParameter(returnParamName));
+            }
+            _out << '<';
+            if (returnAndOutParams.size() == 1)
+            {
+                _out << csOutgoingParamType(returnAndOutParams.front()->type(), ns, returnAndOutParams.front()->optional());
+            }
+            else
+            {
+                _out << spar;
+                for (const auto& param : returnAndOutParams)
+                {
+                    _out << (csOutgoingParamType(param->type(), ns, param->optional()) + " " + toPascalCase(param->mappedName()));
+                }
+                _out << epar;
+            }
+            _out << '>';
+        }
+        _out << ' ' << removeEscapePrefix(operation->mappedName()) << "Async(";
+        _out.inc();
+        for (const auto& param : operation->inParameters())
+        {
+            _out << nl << csOutgoingParamType(param->type(), ns, param->optional()) << ' ' << param->mappedName() << ',';
+        }
+
+        string featuresParamName = escapeParamName("features", operation->inParameters());
+        string cancellationTokenParamName = escapeParamName("cancellationToken", operation->inParameters());
+
+        _out << nl << "IceRpc.Features.IFeatureCollection? features = null,";
+        _out << nl << "global::System.Threading.CancellationToken " << cancellationTokenParamName << " = default);";
+        _out.dec();
+    }
+
+    _out << eb;
+
+    /*
+    // Generate the proxy struct.
+    _out << sp;
+    // TODO: doc comment
+    emitObsoleteAttribute(p);
+    _out << nl << "public readonly partial record struct " << p->mappedName() << "Proxy : IProxy";
+    */
+
+
+    return true;
+}
+
+void
+Slice::IceRpc::TypesVisitor::visitInterfaceDefEnd(const InterfaceDefPtr&)
+{
+
+}
+
+void Slice::IceRpc::TypesVisitor::visitOperation(const OperationPtr& )
+{
+
+}
+
+bool
 Slice::IceRpc::TypesVisitor::writePrimaryConstructor(
     const ContainedPtr& p,
     const DataMemberList& fields,
@@ -420,4 +545,79 @@ Slice::IceRpc::TypesVisitor::writePrimaryConstructor(
     }
     _out << eb;
     return hasRequiredField;
+}
+
+void
+Slice::IceRpc::TypesVisitor::writeEncodeDecode(
+    int compactId,
+    const string& ns,
+    bool hasBase,
+    const DataMemberList& fields,
+    const DataMemberList& orderedOptionalFields)
+{
+    _out << sp;
+    emitNonBrowsableAttribute();
+    _out << nl << "protected override void EncodeCore(ref SliceEncoder encoder)";
+    _out << sb;
+    _out << nl << "encoder.StartSlice(SliceTypeId";
+    if (compactId != -1)
+    {
+        _out << ", CompactSliceTypeId";
+    }
+    _out << ");";
+    // Encode non-optional fields
+    for (const auto& field : fields)
+    {
+        if (!field->optional())
+        {
+            encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+        }
+    }
+    // Encode optional fields
+    for (const auto& field : orderedOptionalFields)
+    {
+        encodeOptionalField(_out, field->tag(), "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+    }
+
+    if (hasBase)
+    {
+        _out << nl << "encoder.EndSlice(false);";
+        _out << nl << "base.EncodeCore(ref encoder);";
+    }
+    else
+    {
+        _out << nl << "encoder.EndSlice(true);"; // last slice
+    }
+    _out << eb;
+
+    _out << sp;
+    emitNonBrowsableAttribute();
+    _out << nl << "protected override void DecodeCore(ref SliceDecoder decoder)";
+    _out << sb;
+    _out << nl << "decoder.StartSlice();";
+    // Decode non-optional fields
+    for (const auto& field : fields)
+    {
+        if (!field->optional())
+        {
+            _out << nl << "this." + field->mappedName() << " = ";
+            decodeField(_out, field->type(), ns, TypeContext::Field);
+            _out << ';';
+        }
+    }
+    // Decode optional fields
+    for (const auto& field : orderedOptionalFields)
+    {
+        _out << nl << "this." + field->mappedName() << " = ";
+        decodeOptionalField(_out, field->tag(), field->type(), ns, TypeContext::Field);
+        _out << ';';
+    }
+
+    _out << nl << "decoder.EndSlice();";
+    if (hasBase)
+    {
+        _out << nl << "base.DecodeCore(ref decoder);";
+    }
+    _out << eb;
+
 }
