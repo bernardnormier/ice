@@ -15,9 +15,6 @@ namespace Slice::IceRpc
     public:
         TypesVisitor(IceInternal::Output&);
 
-        bool visitModuleStart(const ModulePtr&) final;
-        void visitModuleEnd(const ModulePtr&) final;
-
         bool visitStructStart(const StructPtr&) final;
         void visitStructEnd(const StructPtr&) final;
 
@@ -51,12 +48,24 @@ namespace Slice::IceRpc
             const DataMemberList& allBaseFields);
 
         void writeProxyRequestClass(const InterfaceDefPtr& interface);
-
         void writeProxyResponseClass(const InterfaceDefPtr& interface);
+    };
 
-        void writeMethod(const OperationPtr& operation, const std::string& ns, const std::vector<std::string>& extraParams, bool dispatch);
+    // Generates skeleton interfaces.
+    class SkeletonVisitor final : public CsVisitor
+    {
+    public:
+        SkeletonVisitor(IceInternal::Output&);
 
+        bool visitModuleStart(const ModulePtr&) final;
 
+        bool visitInterfaceDefStart(const InterfaceDefPtr&) final;
+        void visitInterfaceDefEnd(const InterfaceDefPtr&) final;
+        void visitOperation(const OperationPtr&) final;
+
+    private:
+        void writeRequestClass(const InterfaceDefPtr& interface);
+        void writeResponseClass(const InterfaceDefPtr& interface);
     };
 }
 

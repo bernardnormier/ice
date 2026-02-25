@@ -105,6 +105,9 @@ Slice::Gen::generate(const UnitPtr& p)
     {
         Slice::IceRpc::TypesVisitor typesVisitor(_out);
         p->visit(&typesVisitor);
+
+        Slice::IceRpc::SkeletonVisitor skeletonVisitor(_out);
+        p->visit(&skeletonVisitor);
     }
     else
     {
