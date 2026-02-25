@@ -249,7 +249,8 @@ Slice::Csharp::encodeField(
     const string& fieldName,
     const TypePtr& type,
     const string& ns,
-    TypeContext context)
+    TypeContext context,
+    const string& encoderName)
 {
     assert(type);
 
@@ -268,21 +269,21 @@ Slice::Csharp::encodeField(
     BuiltinPtr builtin = dynamic_pointer_cast<Builtin>(type);
     if (builtin)
     {
-        out << nl << "encoder.Encode" << builtinTable[builtin->kind()] << "(" << fieldName << ");";
+        out << nl << encoderName << ".Encode" << builtinTable[builtin->kind()] << "(" << fieldName << ");";
         return;
     }
 
     ClassDeclPtr cl = dynamic_pointer_cast<ClassDecl>(type);
     if (cl)
     {
-        out << nl << "encoder.EncodeNullableClass(" << fieldName << ");";
+        out << nl << encoderName << ".EncodeNullableClass(" << fieldName << ");";
         return;
     }
 
     StructPtr st = dynamic_pointer_cast<Struct>(type);
     if (st)
     {
-        out << nl << fieldName << ".Encode(ref encoder);";
+        out << nl << fieldName << ".Encode(ref " << encoderName << ");";
         return;
     }
 
@@ -290,7 +291,7 @@ Slice::Csharp::encodeField(
     if (proxy)
     {
         out << nl << getUnqualified(proxy, ns) << "ProxySliceEncoderExtensions.EncodeNullable"
-            << removeEscapePrefix(proxy->mappedName()) << "Proxy(ref encoder, " << fieldName << ");";
+            << removeEscapePrefix(proxy->mappedName()) << "Proxy(ref " << encoderName << ", " << fieldName << ");";
         return;
     }
 
@@ -298,7 +299,7 @@ Slice::Csharp::encodeField(
     if (en)
     {
         out << nl << getUnqualified(en, ns) << "SliceEncoderExtensions.Encode" << removeEscapePrefix(en->mappedName())
-            << "(ref encoder, " << fieldName << ");";
+            << "(ref " << encoderName << ", " << fieldName << ");";
         return;
     }
 
@@ -309,23 +310,23 @@ Slice::Csharp::encodeField(
         {
             if (context == TypeContext::OutgoingParam)
             {
-                out << nl << "encoder.EncodeSpan(" << fieldName << ".Span);";
+                out << nl << encoderName << ".EncodeSpan(" << fieldName << ".Span);";
             }
             else
             {
-                out << nl << "encoder.EncodeSequence(" << fieldName << ");";
+                out << nl << encoderName << ".EncodeSequence(" << fieldName << ");";
             }
         }
         else
         {
             TypePtr elementType = seq->type();
 
-            out << nl << "encoder.EncodeSequence(";
+            out << nl << encoderName << ".EncodeSequence(";
             out.inc();
             out << nl << fieldName << ",";
             out << nl << "(ref SliceEncoder encoder, " << csFieldType(elementType, ns) << " value) =>";
             out << sb;
-            encodeField(out, "value", elementType, ns, TypeContext::Field);
+            encodeField(out, "value", elementType, ns, TypeContext::Field, "encoder");
             out << eb << ");";
             out.dec();
         }
@@ -337,16 +338,16 @@ Slice::Csharp::encodeField(
     {
         TypePtr keyType = dict->keyType();
         TypePtr valueType = dict->valueType();
-        out << nl << "encoder.EncodeDictionary(";
+        out << nl << encoderName << ".EncodeDictionary(";
         out.inc();
         out << nl << fieldName << ",";
         out << nl << "(ref SliceEncoder encoder, " << csFieldType(keyType, ns) << " key) =>";
         out << sb;
-        encodeField(out, "key", keyType, ns, TypeContext::Field);
+        encodeField(out, "key", keyType, ns, TypeContext::Field, "encoder");
         out << eb << ",";
         out << nl << "(ref SliceEncoder encoder, " << csFieldType(valueType, ns) << " value) =>";
         out << sb;
-        encodeField(out, "value", valueType, ns, TypeContext::Field);
+        encodeField(out, "value", valueType, ns, TypeContext::Field, "encoder");
         out << eb << ");";
         out.dec();
         return;
@@ -362,7 +363,8 @@ Slice::Csharp::encodeOptionalField(
     const string& fieldName,
     const TypePtr& type,
     const string& ns,
-    TypeContext context)
+    TypeContext context,
+    const string& encoderName)
 {
     assert(type);
 
@@ -392,7 +394,7 @@ Slice::Csharp::encodeOptionalField(
         out << sp;
     }
 
-    out << nl << "encoder.EncodeTagged(";
+    out << nl << encoderName << ".EncodeTagged(";
     out.inc();
     out << nl << "tag: " << tag << ",";
 
@@ -406,16 +408,16 @@ Slice::Csharp::encodeOptionalField(
         }
         else if (readOnlyMemory)
         {
-            out << "encoder.GetSizeLength(" << fieldName << ".Length) + " << seq->type()->minWireSize() << " * "
+            out << encoderName << ".GetSizeLength(" << fieldName << ".Length) + " << seq->type()->minWireSize() << " * "
                 << fieldName << ".Length";
         }
         else if (seq)
         {
-            out << "encoder.GetSizeLength(count_) + " << seq->type()->minWireSize() << " * count_";
+            out << encoderName << ".GetSizeLength(count_) + " << seq->type()->minWireSize() << " * count_";
         }
         else if (auto dict = dynamic_pointer_cast<Dictionary>(type))
         {
-            out << "encoder.GetSizeLength(count_) + "
+            out << encoderName << ".GetSizeLength(count_) + "
                 << (dict->keyType()->minWireSize() + dict->valueType()->minWireSize()) << " * count_";
         }
         else
@@ -434,7 +436,7 @@ Slice::Csharp::encodeOptionalField(
     out << nl << fieldName << (isCsValueType(type) ? ".Value" : "") << ",";
     out << nl << "(ref SliceEncoder encoder, " << csType(type, ns, context) << " value) => ";
     out << sb;
-    encodeField(out, "value", type, ns, context);
+    encodeField(out, "value", type, ns, context, "encoder");
     out << eb;
     out << ");";
     out.dec();
@@ -470,7 +472,7 @@ Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, T
     ClassDeclPtr cl = dynamic_pointer_cast<ClassDecl>(type);
     if (cl)
     {
-        out << "decoder.DecodeClass<" << getUnqualified(cl, ns) << ">();";
+        out << "decoder.DecodeClass<" << getUnqualified(cl, ns) << ">()";
         return;
     }
 

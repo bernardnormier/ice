@@ -34,12 +34,12 @@ Slice::Csharp::getNamespace(const ContainedPtr& p)
 }
 
 string
-Slice::Csharp::getUnqualified(const ContainedPtr& p, const string& ns, const string& prefix)
+Slice::Csharp::getUnqualified(const ContainedPtr& p, const string& ns, const string& prefix, const string& suffix)
 {
     string name = p->mappedName();
-    if (!prefix.empty())
+    if (!prefix.empty() || !suffix.empty())
     {
-        name = prefix + removeEscapePrefix(name);
+        name = prefix + removeEscapePrefix(name) + suffix;
     }
 
     // If contained is an operation, a field, or an enumerator, we use the enclosing type.

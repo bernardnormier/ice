@@ -41,6 +41,75 @@ namespace
         }
         return paramName;
     }
+
+    string defaultServicePath(const InterfaceDefPtr& interface)
+    {
+        string path = interface->scoped().substr(2); // Remove leading '::'
+        string::size_type pos = 0;
+        while ((pos = path.find("::", pos)) != string::npos)
+        {
+            path.replace(pos, 2, ".");
+            pos += 1;
+        }
+
+        return "/" + path;
+    }
+
+    string classFormat(const OperationPtr& operation)
+    {
+        FormatType format = operation->format().value_or(FormatType::CompactFormat);
+        return format == FormatType::SlicedFormat ? "ClassFormat.Sliced" : "default";
+    }
+
+    ParameterList returnAndOutParams(const OperationPtr& operation)
+    {
+        ParameterList params = operation->outParameters();
+        if (operation->returnType())
+        {
+            string returnParamName = escapeCapitalizedParamName("ReturnValue", params);
+            params.insert(params.begin(), operation->returnParameter(returnParamName));
+        }
+        return params;
+    }
+
+    string returnTask(const OperationPtr& operation, const string& taskType, bool dispatch)
+    {
+        string ns = getNamespace(operation->interface());
+
+        ostringstream result;
+        result << "global::System.Threading.Tasks." << taskType;
+
+        TypeContext returnContext = dispatch ? TypeContext::OutgoingParam : TypeContext::IncomingParam;
+
+        if (operation->returnsAnyValues())
+        {
+            result << '<';
+            ParameterList returnParams = returnAndOutParams(operation);
+
+            if (returnParams.size() == 1)
+            {
+                result << csType(returnParams.front()->type(), ns, returnContext, returnParams.front()->optional());
+            }
+            else
+            {
+                result << '(';
+                for (auto q = returnParams.begin(); q != returnParams.end(); ++q)
+                {
+                    const auto& param = *q;
+                    if (q != returnParams.begin())
+                    {
+                        result << ", ";
+                    }
+
+                    result << csType(param->type(), ns, returnContext, param->optional())
+                        << " " << toPascalCase(param->mappedName());
+                }
+                result << ')';
+            }
+            result << '>';
+        }
+        return result.str();
+    }
 }
 
 Slice::IceRpc::TypesVisitor::TypesVisitor(IceInternal::Output& out) : CsVisitor(out) {}
@@ -110,7 +179,7 @@ Slice::IceRpc::TypesVisitor::visitStructEnd(const StructPtr& p)
     _out << sb;
     for (const auto& field : p->dataMembers())
     {
-        encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+        encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field, "encoder");
     }
     _out << eb;
 
@@ -405,78 +474,249 @@ Slice::IceRpc::TypesVisitor::visitInterfaceDefStart(const InterfaceDefPtr& p)
 
     _out << sb;
 
-    for (const auto& operation : p->operations())
-    {
-        if (!isFirstElement(operation))
-        {
-            _out << sp;
-        }
-
-        // TODO: doc comment for operation
-        emitObsoleteAttribute(operation);
-        _out << nl << "global::System.Threading.Tasks.Task";
-        if (operation->returnsAnyValues())
-        {
-            ParameterList returnAndOutParams = operation->outParameters();
-            if (operation->returnType())
-            {
-                string returnParamName = escapeCapitalizedParamName("ReturnValue", returnAndOutParams);
-                returnAndOutParams.insert(returnAndOutParams.begin(), operation->returnParameter(returnParamName));
-            }
-            _out << '<';
-            if (returnAndOutParams.size() == 1)
-            {
-                _out << csOutgoingParamType(returnAndOutParams.front()->type(), ns, returnAndOutParams.front()->optional());
-            }
-            else
-            {
-                _out << spar;
-                for (const auto& param : returnAndOutParams)
-                {
-                    _out << (csOutgoingParamType(param->type(), ns, param->optional()) + " " + toPascalCase(param->mappedName()));
-                }
-                _out << epar;
-            }
-            _out << '>';
-        }
-        _out << ' ' << removeEscapePrefix(operation->mappedName()) << "Async(";
-        _out.inc();
-        for (const auto& param : operation->inParameters())
-        {
-            _out << nl << csOutgoingParamType(param->type(), ns, param->optional()) << ' ' << param->mappedName() << ',';
-        }
-
-        string featuresParamName = escapeParamName("features", operation->inParameters());
-        string cancellationTokenParamName = escapeParamName("cancellationToken", operation->inParameters());
-
-        _out << nl << "IceRpc.Features.IFeatureCollection? features = null,";
-        _out << nl << "global::System.Threading.CancellationToken " << cancellationTokenParamName << " = default);";
-        _out.dec();
-    }
-
-    _out << eb;
-
-    /*
-    // Generate the proxy struct.
-    _out << sp;
-    // TODO: doc comment
-    emitObsoleteAttribute(p);
-    _out << nl << "public readonly partial record struct " << p->mappedName() << "Proxy : IProxy";
-    */
-
-
     return true;
 }
 
 void
-Slice::IceRpc::TypesVisitor::visitInterfaceDefEnd(const InterfaceDefPtr&)
+Slice::IceRpc::TypesVisitor::visitInterfaceDefEnd(const InterfaceDefPtr& p)
 {
+    string ns = getNamespace(p);
+    string escapedName = p->mappedName();
+    string name = removeEscapePrefix(escapedName);
 
+    _out << eb; // end of client interface
+
+    // Generate the proxy struct.
+    _out << sp;
+
+    writeDocLines(
+        _out,
+        "summary",
+        {
+            "Implements <see cref=\"I" + name + "\" /> by making invocations on a remote IceRPC service.",
+            "This remote service must implement Slice interface <c>" + p->scoped() + "</c>."
+        });
+
+    _out << nl << "[SliceTypeId(\"" << p->scoped() << "\")]";
+    emitObsoleteAttribute(p);
+    _out << nl << "public readonly partial record struct " << name << "Proxy : "
+        << 'I' << name << ", IProxy";
+
+    _out << sb;
+
+    writeProxyRequestClass(p);
+    _out << sp;
+    writeProxyResponseClass(p);
+    _out << sp;
+
+    _out << nl << "/// <summary>Represents the default path for IceRPC services that implement Slice interface";
+    _out << nl << "/// <c>" << p->scoped() <<"</c>.</summary>";
+    _out << nl << "public const string DefaultServicePath = \"" << defaultServicePath(p) << "\";";
+    _out << sp;
+    _out << nl << "/// <inheritdoc/>";
+    _out << nl << "SliceEncodeOptions? EncodeOptions { get; init; }";
+    _out << sp;
+    _out << nl << "/// <inheritdoc/>";
+    _out << nl << "public required IceRpc.IInvoker Invoker { get; init; }";
+    _out << sp;
+    _out << nl << "/// <inheritdoc/>";
+    _out << nl << "public IceRpc.ServiceAddress ServiceAddress { get; init; } = _defaultServiceAddress;";
+    _out << sp;
+    _out << nl << "private static IceRpc.ServiceAddress _defaultServiceAddress =";
+    _out.inc();
+    _out << nl << "new(IceRpc.Protocol.IceRpc) { Path = DefaultServicePath };";
+    _out.dec();
+    _out << sp;
+    _out << nl << "private static readonly IActivator _defaultActivator =";
+    _out.inc();
+    _out << nl << "IActivator.FromAssembly(typeof(" << name << "Proxy).Assembly);";
+    _out.dec();
+
+    // Implicit base conversions
+    for (const auto& base : p->bases())
+    {
+        _out << sp;
+        string baseName = getUnqualified(base, ns) + "Proxy";
+        writeDocLine(
+            _out,
+            "summary",
+            "Provides an implicit conversion to <see cref =\"" + baseName + "\" />.");
+
+        _out << nl << "public static implicit operator " << baseName << "(" << name << "Proxy proxy) =>";
+        _out.inc();
+        _out << nl << "new() { EncodeOptions = proxy.EncodeOptions, Invoker = proxy.Invoker, ServiceAddress = proxy.ServiceAddress };";
+        _out.dec();
+    }
+
+    // FromPath static method.
+    _out << sp;
+    _out << nl << "/// <summary>Creates a relative proxy from a path.</summary>";
+    _out << nl << "/// <param name=\"path\">The path.</param>";
+    _out << nl << "/// <returns>The new relative proxy.</returns>";
+    _out << nl << "public static " << name << "Proxy FromPath(string path) =>";
+    _out.inc();
+    _out << nl << "new(IceRpc.InvalidInvoker.Instance, new IceRpc.ServiceAddress { Path = path });";
+    _out.dec();
+
+    // Primary constructor (invoker, serviceAddress, encodeOptions).
+    _out << sp;
+    _out << nl << "/// <summary>Constructs a proxy from an invoker, a service address and encode options.</summary>";
+    _out << nl << "/// <param name=\"invoker\">The invocation pipeline of the proxy.</param>";
+    _out << nl << "/// <param name=\"serviceAddress\">The service address. <see langword=\"null\" /> is equivalent to an IceRPC service address";
+    _out << nl << "/// with path <see cref=\"DefaultServicePath\" />.</param>";
+    _out << nl << "/// <param name=\"encodeOptions\">The encode options, used to customize the encoding of request payloads.</param>";
+    _out << nl << "[System.Diagnostics.CodeAnalysis.SetsRequiredMembers]";
+    _out << nl << "public " << name << "Proxy(";
+    _out.inc();
+    _out << nl << "IceRpc.IInvoker invoker,";
+    _out << nl << "IceRpc.ServiceAddress? serviceAddress = null,";
+    _out << nl << "SliceEncodeOptions? encodeOptions = null)";
+    _out.dec();
+    _out << sb;
+    _out << nl << "Invoker = invoker;";
+    _out << nl << "ServiceAddress = serviceAddress ?? _defaultServiceAddress;";
+    _out << nl << "EncodeOptions = encodeOptions;";
+    _out << eb;
+
+    // Constructor (invoker, serviceAddressUri, encodeOptions).
+    _out << sp;
+    _out << nl << "/// <summary>Constructs a proxy from an invoker, a service address URI and encode options.</summary>";
+    _out << nl << "/// <param name=\"invoker\">The invocation pipeline of the proxy.</param>";
+    _out << nl << "/// <param name=\"serviceAddressUri\">A URI that represents a service address.</param>";
+    _out << nl << "/// <param name=\"encodeOptions\">The encode options, used to customize the encoding of request payloads.</param>";
+    _out << nl << "[System.Diagnostics.CodeAnalysis.SetsRequiredMembers]";
+    _out << nl << "public " << name << "Proxy(IceRpc.IInvoker invoker, System.Uri serviceAddressUri, SliceEncodeOptions? encodeOptions = null)";
+    _out.inc();
+    _out << nl << ": this(invoker, new IceRpc.ServiceAddress(serviceAddressUri), encodeOptions)";
+    _out.dec();
+    _out << sb;
+    _out << eb;
+
+    // Parameterless constructor.
+    _out << sp;
+    _out << nl << "/// <summary>Constructs a proxy with an IceRPC service address with path <see cref=\"DefaultServicePath\" />.</summary>";
+    _out << nl << "public " << name << "Proxy()";
+    _out << sb;
+    _out << eb;
+
+    // Inherited operations
+    for (const auto& operation : p->allInheritedOperations())
+    {
+        _out << sp;
+        _out << nl << "/// <inheritdoc/>";
+        _out << nl << "public ";
+
+        string featureParam = escapeParamName("features", operation->inParameters());
+        string cancellationTokenParam = escapeParamName("cancellationToken", operation->inParameters());
+
+        writeMethod(
+            operation,
+            ns,
+            {
+                "IceRpc.Features.IFeatureCollection? " + featureParam + " = null",
+                "global::System.Threading.CancellationToken " + cancellationTokenParam + " = default"
+            },
+            false);
+
+        _out << " =>";
+        _out.inc();
+        _out << nl << "(" << getUnqualified(operation->interface(), ns, "", "Proxy") << ")this." << operation->mappedName();
+        _out << spar;
+        for (const auto& param : operation->inParameters())
+        {
+            _out << param->mappedName();
+        }
+
+        _out << featureParam << cancellationTokenParam;
+        _out << epar;
+        _out << ';';
+        _out.dec();
+    }
+
+    // My operations
+    for (const auto& operation : p->operations())
+    {
+        _out << sp;
+        _out << nl << "/// <inheritdoc/>";
+        _out << nl << "public ";
+
+        string operationName = removeEscapePrefix(operation->mappedName());
+        string featureParam = escapeParamName("features", operation->inParameters());
+        string cancellationTokenParam = escapeParamName("cancellationToken", operation->inParameters());
+
+        writeMethod(
+            operation,
+            ns,
+            {
+                "IceRpc.Features.IFeatureCollection? " + featureParam + " = null",
+                "global::System.Threading.CancellationToken " + cancellationTokenParam + " = default"
+            },
+            false);
+
+        _out << " =>";
+        _out.inc();
+
+        // There is no equivalent for [compress] in Ice-Slice.
+
+        _out << nl << "this.InvokeOperationAsync(";
+        _out.inc();
+        _out << nl << "\"" << operation->name() << "\",";
+        if (operation->inParameters().empty())
+        {
+            _out << nl << "payload: Request.Encode" << operationName << "(encodeOptions: EncodeOptions),";
+        }
+        else
+        {
+            _out << nl << "payload: Request.Encode";
+            _out << spar;
+            for (const auto& param : operation->inParameters())
+            {
+                _out << param->mappedName();
+            }
+            // TODO: escape encodeOptions
+            _out << "encodeOptions: EncodeOptions";
+            _out << epar;
+            _out << ',';
+        }
+        _out << nl << "payloadContinuation: null,";
+        _out << nl << "Response.Decode" << operationName << "Async,";
+        _out << nl << featureParam << ",";
+        if (operation->mode() == Operation::Idempotent)
+        {
+            _out << nl << "idempotent: true,";
+        }
+        // TODO: oneway attribute
+        _out << nl << cancellationTokenParam << ");";
+        _out.dec();
+
+        _out.dec();
+    }
+
+    _out << eb;
 }
 
-void Slice::IceRpc::TypesVisitor::visitOperation(const OperationPtr& )
+void Slice::IceRpc::TypesVisitor::visitOperation(const OperationPtr& p)
 {
+    if (!isFirstElement(p))
+    {
+        _out << sp;
+    }
 
+    string ns = getNamespace(p->interface());
+
+    // The abstract method in the generated interface.
+    string featuresParam = escapeParamName("features", p->parameters());
+    string cancellationTokenParam = escapeParamName("cancellationToken", p->parameters());
+
+    vector<string> extraParams = {
+        "IceRpc.Features.IFeatureCollection? " + featuresParam + " = null",
+        "global::System.Threading.CancellationToken " + cancellationTokenParam + " = default"};
+
+    // TODO: doc comment for operation
+    emitObsoleteAttribute(p);
+    _out << nl;
+    writeMethod(p, ns, extraParams, false);
+    _out << ';';
 }
 
 bool
@@ -570,13 +810,13 @@ Slice::IceRpc::TypesVisitor::writeEncodeDecode(
     {
         if (!field->optional())
         {
-            encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+            encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field, "encoder");
         }
     }
     // Encode optional fields
     for (const auto& field : orderedOptionalFields)
     {
-        encodeOptionalField(_out, field->tag(), "this." + field->mappedName(), field->type(), ns, TypeContext::Field);
+        encodeOptionalField(_out, field->tag(), "this." + field->mappedName(), field->type(), ns, TypeContext::Field, "encoder");
     }
 
     if (hasBase)
@@ -619,5 +859,258 @@ Slice::IceRpc::TypesVisitor::writeEncodeDecode(
         _out << nl << "base.DecodeCore(ref decoder);";
     }
     _out << eb;
+}
 
+void
+Slice::IceRpc::TypesVisitor::writeProxyRequestClass(const InterfaceDefPtr& interface)
+{
+    string ns = getNamespace(interface);
+
+    writeDocLine(
+        _out,
+        "summary",
+        "Provides static methods that encode operation arguments into request payloads.");
+    _out << nl << "public static class Request";
+    _out << sb;
+
+    for (const auto& operation : interface->operations())
+    {
+        if (!isFirstElement(operation))
+        {
+            _out << sp;
+        }
+
+        writeDocLine(
+            _out,
+            "summary",
+            "Encodes the argument(s) of operation <c>" + operation->name() + "</c> into a request payload.");
+        // TODO: param doc comments
+        writeDocLine(_out, "param name=\"encodeOptions\"", "The Slice encode options.", "param");
+        writeDocLine(_out, "returns", "The Slice-encoded payload.");
+
+        _out << nl << "public static global::System.IO.Pipelines.PipeReader Encode"
+            << removeEscapePrefix(operation->mappedName()) << "(";
+
+        _out.inc();
+        for (const auto& param : operation->inParameters())
+        {
+            _out << nl << csOutgoingParamType(param->type(), ns, param->optional()) << ' ' << param->mappedName() << ',';
+        }
+        _out << nl << "SliceEncodeOptions? encodeOptions = null)";
+        _out.dec();
+        _out << sb;
+        if (operation->inParameters().empty())
+        {
+            _out << nl << "return IceRpc.EmptyPipeReader.Instance;";
+        }
+        else
+        {
+            _out << nl << "var pipe_ = new global::System.IO.Pipelines.Pipe(";
+            _out.inc();
+            _out << nl << "encodeOptions?.PipeOptions ?? SliceEncodeOptions.Default.PipeOptions);";
+            _out.dec();
+            _out << nl << "var encoder_ = new SliceEncoder(pipe_.Writer, SliceEncoding.Slice1, " << classFormat(operation) << ");";
+
+            for (const auto& param : operation->sortedInParameters())
+            {
+                if (param->optional())
+                {
+                    encodeOptionalField(_out, param->tag(), param->mappedName(), param->type(), ns, TypeContext::OutgoingParam, "encoder_");
+                }
+                else
+                {
+                    encodeField(_out, param->mappedName(), param->type(), ns, TypeContext::OutgoingParam, "encoder_");
+                }
+            }
+
+            _out << nl << "pipe_.Writer.Complete();";
+            _out << nl << "return pipe_.Reader;";
+        }
+        _out << eb;
+    }
+
+    _out << eb;
+}
+
+void
+Slice::IceRpc::TypesVisitor::writeProxyResponseClass(const InterfaceDefPtr& interface)
+{
+    string ns = getNamespace(interface);
+
+    writeDocLine(
+        _out,
+        "summary",
+        "Provides a <see cref=\"ResponseDecodeFunc{T}\" /> for each operation defined in Slice interface <c>" +
+            interface->scoped() + "</c>.");
+    _out << nl << "public static class Response";
+    _out << sb;
+
+    for (const auto& operation : interface->operations())
+    {
+        if (!isFirstElement(operation))
+        {
+            _out << sp;
+        }
+
+        writeDocLine(
+            _out,
+            "summary",
+            "Decodes an incoming response for operation <c>" + operation->name() + "</c>.");
+        _out << nl << "public static async " << returnTask(operation, "ValueTask", false)
+            << " Decode" << removeEscapePrefix(operation->mappedName()) << "Async(";
+        _out.inc();
+        _out << nl << "IceRpc.IncomingResponse response,";
+        _out << nl << "IceRpc.OutgoingRequest request,";
+        _out << nl << "IProxy sender,";
+        _out << nl << "global::System.Threading.CancellationToken cancellationToken)";
+        _out.dec();
+        _out << sb;
+
+        _out << nl << "try";
+        _out << sb;
+
+        if (operation->returnsAnyValues())
+        {
+            _out << nl << "return await response.DecodeReturnValueAsync(";
+            _out.inc();
+            _out << nl << "request,";
+            _out << nl << "SliceEncoding.Slice1,";
+            _out << nl << "sender,";
+            _out << nl << "(ref SliceDecoder decoder) => ";
+
+            ParameterList returnParams = operation->sortedReturnAndOutParameters("returnValue_");
+
+            if (returnParams.size() == 1)
+            {
+                // Simplified decoding function for a single return value.
+                if (returnParams.front()->optional())
+                {
+                    decodeOptionalField(_out, returnParams.front()->tag(), returnParams.front()->type(), ns, TypeContext::IncomingParam);
+                }
+                else
+                {
+                    decodeField(_out, returnParams.front()->type(), ns, TypeContext::IncomingParam);
+                }
+            }
+            else
+            {
+                _out << sb;
+
+                // Decode all return params
+                for (const auto& param: returnParams)
+                {
+                    _out << nl << csType(param->type(), ns, TypeContext::IncomingParam, param->optional())
+                        << " sliceP_" << removeEscapePrefix(param->mappedName()) << " = ";
+                    if (param->optional())
+                    {
+                        decodeOptionalField(_out, param->tag(), param->type(), ns, TypeContext::IncomingParam);
+                    }
+                    else
+                    {
+                        decodeField(_out, param->type(), ns, TypeContext::IncomingParam);
+                    }
+                    _out << ';';
+                }
+
+                // Return tuple with the return value (if any) first.
+                _out << nl << "return " << spar;
+                if (operation->returnType())
+                {
+                    _out << "sliceP_returnValue_";
+                }
+                for (const auto& param: returnParams)
+                {
+                    if (param->name() != "returnValue_")
+                    {
+                        _out << ("sliceP_" + removeEscapePrefix(param->mappedName()));
+                    }
+                }
+                _out << epar << ";";
+
+                _out << eb;
+            }
+            _out << ',';
+
+            _out << nl << "_defaultActivator,";
+            _out << nl << "cancellationToken).ConfigureAwait(false);";
+            _out.dec();
+        }
+        else
+        {
+            _out << nl << "await response.DecodeVoidReturnValueAsync(";
+            _out.inc();
+            _out << nl << "request,";
+            _out << nl << "SliceEncoding.Slice1,";
+            _out << nl << "sender,";
+            _out << nl << "_defaultActivator,";
+            _out << nl << "cancellationToken).ConfigureAwait(false);";
+            _out.dec();
+        }
+
+        _out << eb;
+        _out << nl << "catch (SliceException exception)";
+        ExceptionList exceptionList = operation->throws();
+        if (!exceptionList.empty())
+        {
+            _out << " when (exception is not ";
+            if (exceptionList.size() == 1)
+            {
+                _out << getUnqualified(exceptionList.front(), ns);
+            }
+            else
+            {
+                _out << '(';
+                for (auto q = exceptionList.begin(); q != exceptionList.end(); ++q)
+                {
+                    ExceptionPtr exception = *q;
+                    if (q != exceptionList.begin())
+                    {
+                        _out << " or ";
+                    }
+                    _out << getUnqualified(exception, ns);
+                }
+                _out << ')';
+            }
+            _out << ')';
+        }
+        _out << sb;
+        _out << nl << "throw new global::System.IO.InvalidDataException(";
+        _out.inc();
+        _out << nl << "$\"Exception specification violation: response to a " << operation->name()
+            << " request carries an exception of type '{exception.GetType()}'.\", exception);";
+        _out.dec();
+        _out << eb;
+        _out << eb;
+    }
+
+    _out << eb;
+}
+
+void
+Slice::IceRpc::TypesVisitor::writeMethod(
+    const OperationPtr& operation,
+    const std::string& ns,
+    const vector<string>& extraParams,
+    bool dispatch)
+{
+    TypeContext paramContext = dispatch ? TypeContext::IncomingParam : TypeContext::OutgoingParam;
+
+    _out << returnTask(operation, dispatch ? "ValueTask" : "Task", dispatch) << ' '
+        << removeEscapePrefix(operation->mappedName()) << "Async(";
+    _out.inc();
+    for (const auto& param : operation->inParameters())
+    {
+        _out << nl << csType(param->type(), ns, paramContext, param->optional()) << ' ' << param->mappedName() << ',';
+    }
+
+    for (auto q = extraParams.begin(); q != extraParams.end();)
+    {
+        _out << nl << *q;
+        if (++q != extraParams.end())
+        {
+            _out << ',';
+        }
+    }
+    _out << ')';
+    _out.dec();
 }

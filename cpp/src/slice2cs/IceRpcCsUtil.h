@@ -55,7 +55,8 @@ namespace Slice::Csharp
         const std::string& fieldName,
         const TypePtr& type,
         const std::string& ns,
-        TypeContext context);
+        TypeContext context,
+        const std::string& encoderName);
 
     /// Encodes an optional field.
     void encodeOptionalField(
@@ -64,7 +65,8 @@ namespace Slice::Csharp
         const std::string& fieldName,
         const TypePtr& type,
         const std::string& ns,
-        TypeContext context);
+        TypeContext context,
+        const std::string& encoderName);
 
     /// Decodes a non-optional field.
     void decodeField(::IceInternal::Output& out, const TypePtr& type, const std::string& ns, TypeContext context);

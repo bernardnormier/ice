@@ -12,7 +12,7 @@ namespace Slice::Csharp
     [[nodiscard]] std::string getNamespace(const ContainedPtr& p);
 
     [[nodiscard]] std::string
-    getUnqualified(const ContainedPtr& p, const std::string& ns, const std::string& prefix = "");
+    getUnqualified(const ContainedPtr& p, const std::string& ns, const std::string& prefix = "", const std::string& suffix = "");
 
     /// Removes a leading '@' character from the provided identifier (if one is present).
     [[nodiscard]] std::string removeEscapePrefix(const std::string& identifier);
