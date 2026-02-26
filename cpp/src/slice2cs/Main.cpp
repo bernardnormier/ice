@@ -43,7 +43,7 @@ usage(const string& n)
                   "-UNAME                   Remove any definition for NAME.\n"
                   "-IDIR                    Put DIR in the include file search path.\n"
                   "--output-dir DIR         Create files in the directory DIR.\n"
-                  "--icerpc                 Generate code for IceRPC.\n"
+                  "--rpc [None|Ice|IceRPC]  Generate code for the specified RPC framework. Default is 'Ice'.\n"
                   "-d, --debug              Print debug messages.\n"
                   "--depend                 Generate Makefile dependencies.\n"
                   "--depend-xml             Generate dependencies in XML format.\n"
@@ -64,7 +64,7 @@ compile(const vector<string>& argv)
     opts.addOpt("U", "", IceInternal::Options::NeedArg, "", IceInternal::Options::Repeat);
     opts.addOpt("I", "", IceInternal::Options::NeedArg, "", IceInternal::Options::Repeat);
     opts.addOpt("", "output-dir", IceInternal::Options::NeedArg);
-    opts.addOpt("", "icerpc");
+    opts.addOpt("", "rpc", IceInternal::Options::NeedArg, "Ice");
     opts.addOpt("", "depend");
     opts.addOpt("", "depend-xml");
     opts.addOpt("", "depend-file", IceInternal::Options::NeedArg, "");
@@ -130,7 +130,30 @@ compile(const vector<string>& argv)
     bool enableAnalysis = opts.isSet("enable-analysis");
 
     bool debug = opts.isSet("debug");
-    bool icerpc = opts.isSet("icerpc");
+
+    Slice::GenMode genMode;
+    string rpcArg = opts.optArg("rpc");
+    if (rpcArg == "None")
+    {
+        genMode = Slice::GenMode::None;
+    }
+    else if (rpcArg == "Ice")
+    {
+        genMode = Slice::GenMode::Ice;
+    }
+    else if (rpcArg == "IceRPC")
+    {
+        genMode = Slice::GenMode::IceRpc;
+    }
+    else
+    {
+        consoleErr << argv[0] << ": error: invalid argument for --rpc: " << rpcArg << endl;
+        if (!validate)
+        {
+            usage(argv[0]);
+        }
+        return EXIT_FAILURE;
+    }
 
     if (sliceFiles.empty())
     {
@@ -171,8 +194,9 @@ compile(const vector<string>& argv)
         try
         {
             preprocessor = Preprocessor::create(argv[0], fileName, preprocessorArgs);
-            FILE* preprocessedHandle = icerpc ? preprocessor->preprocess("-D__SLICE2CS__ -D__ICERPC__")
-                                              : preprocessor->preprocess("-D__SLICE2CS__");
+            FILE* preprocessedHandle = genMode == Slice::GenMode::IceRpc
+                ? preprocessor->preprocess("-D__SLICE2CS__ -D__ICERPC__")
+                : preprocessor->preprocess("-D__SLICE2CS__");
 
             if (preprocessedHandle == nullptr)
             {
@@ -180,7 +204,7 @@ compile(const vector<string>& argv)
             }
 
             UnitOptions unitOptions{};
-            if (icerpc)
+            if (genMode != Slice::GenMode::Ice)
             {
                 unitOptions.defaultMappedName = [](const Contained& contained)
                 {
@@ -220,7 +244,7 @@ compile(const vector<string>& argv)
                 Slice::Csharp::IceDocCommentFormatter iceFormatter;
                 parseAllDocComments(unit, iceFormatter);
 
-                Gen gen(preprocessor->getBaseName(), output, icerpc, enableAnalysis);
+                Gen gen(preprocessor->getBaseName(), output, genMode, enableAnalysis);
                 gen.generate(unit);
 
                 status |= unit->getStatus();

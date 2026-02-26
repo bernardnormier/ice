@@ -15,9 +15,8 @@ using namespace Slice;
 using namespace Slice::Csharp;
 using namespace IceInternal;
 
-Slice::Gen::Gen(const string& base, const string& dir, bool icerpc, bool enableAnalysis)
-    : _icerpc(icerpc),
-      _enableAnalysis(enableAnalysis)
+Slice::Gen::Gen(const string& base, const string& dir, GenMode genMode, bool enableAnalysis)
+    : _genMode(genMode), _enableAnalysis(enableAnalysis)
 {
     string fileBase = base;
     string::size_type pos = base.find_last_of("/\\");
@@ -26,9 +25,12 @@ Slice::Gen::Gen(const string& base, const string& dir, bool icerpc, bool enableA
         fileBase = base.substr(pos + 1);
     }
     string file = fileBase + ".cs";
+    string iceRpcFile = fileBase + ".IceRpc.cs";
+
     if (!dir.empty())
     {
         file = dir + '/' + file;
+        iceRpcFile = dir + '/' + iceRpcFile;
     }
 
     _out.open(file.c_str());
@@ -39,11 +41,28 @@ Slice::Gen::Gen(const string& base, const string& dir, bool icerpc, bool enableA
         throw FileException(os.str());
     }
     FileTracker::instance()->addFile(file);
+
+    if (_genMode == GenMode::IceRpc)
+    {
+        _iceRpcOut.open(iceRpcFile.c_str());
+        if (!_iceRpcOut)
+        {
+            ostringstream os;
+            os << "cannot open '" << iceRpcFile << "': " << IceInternal::errorToString(errno);
+            throw FileException(os.str());
+        }
+        FileTracker::instance()->addFile(iceRpcFile);
+    }
+
     printHeader();
 
     if (!_enableAnalysis)
     {
         printGeneratedHeader(_out, fileBase + ".ice");
+        if (_genMode == GenMode::IceRpc)
+        {
+            printGeneratedHeader(_iceRpcOut, fileBase + ".ice");
+        }
     }
 
     _out << sp;
@@ -73,17 +92,25 @@ Slice::Gen::Gen(const string& base, const string& dir, bool icerpc, bool enableA
     _out << nl << "#pragma warning disable CS0618 // Type or member is obsolete";
     _out << nl << "#pragma warning disable CS0619 // Type or member is obsolete";
 
-    if (_icerpc)
+    if (_genMode == GenMode::Ice)
     {
-        _out << sp;
-        _out << nl << "using ZeroC.Slice;";
-        _out << nl << "using IceRpc.Slice;";
-        _out << sp;
-        _out << nl << "[assembly:Slice(\"" << fileBase << ".ice\")]";
+        _out << nl << "[assembly:Ice.Slice(\"" << fileBase << ".ice\")]";
     }
     else
     {
-        _out << nl << "[assembly:Ice.Slice(\"" << fileBase << ".ice\")]";
+        _out << sp;
+        _out << nl << "using ZeroC.Slice;";
+        _out << sp;
+        _out << nl << "[assembly:Slice(\"" << fileBase << ".ice\")]";
+
+        if (_genMode == GenMode::IceRpc)
+        {
+            _iceRpcOut << sp;
+            _iceRpcOut << nl << "using ZeroC.Slice;";
+            _iceRpcOut << nl << "using IceRpc.Slice;";
+            _iceRpcOut << sp;
+            _iceRpcOut << nl << "[assembly:Slice(\"" << fileBase << ".ice\")]";
+        }
     }
 }
 
@@ -91,8 +118,13 @@ Slice::Gen::~Gen()
 {
     if (_out.isOpen())
     {
-        _out << '\n';
+        _out << nl;
         _out.close();
+    }
+    if (_iceRpcOut.isOpen())
+    {
+        _iceRpcOut << nl;
+        _iceRpcOut.close();
     }
 }
 
@@ -101,15 +133,7 @@ Slice::Gen::generate(const UnitPtr& p)
 {
     Slice::validateCsMetadata(p);
 
-    if (_icerpc)
-    {
-        Slice::IceRpc::TypesVisitor typesVisitor(_out);
-        p->visit(&typesVisitor);
-
-        Slice::IceRpc::SkeletonVisitor skeletonVisitor(_out);
-        p->visit(&skeletonVisitor);
-    }
-    else
+    if (_genMode == GenMode::Ice)
     {
         Slice::Ice::TypesVisitor typesVisitor(_out);
         p->visit(&typesVisitor);
@@ -124,6 +148,21 @@ Slice::Gen::generate(const UnitPtr& p)
         // Async skeleton.
         Slice::Ice::SkeletonVisitor asyncSkeletonVisitor(_out, true);
         p->visit(&asyncSkeletonVisitor);
+    }
+    else
+    {
+        Slice::IceRpc::TypesVisitor typesVisitor(_out);
+        p->visit(&typesVisitor);
+
+        if (_genMode == GenMode::IceRpc)
+        {
+            Slice::IceRpc::ProxyVisitor proxyVisitor(_iceRpcOut);
+            p->visit(&proxyVisitor);
+
+            Slice::IceRpc::SkeletonVisitor skeletonVisitor(_iceRpcOut);
+            p->visit(&skeletonVisitor);
+
+        }
     }
 }
 
