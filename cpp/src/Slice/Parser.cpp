@@ -2738,8 +2738,10 @@ Slice::InterfaceDef::createOperation(
                 break;
             }
         }
-        // Check the operations of the Object pseudo-interface.
-        if (!checkBaseOperationNames(name, {"ice_id", "ice_ids", "ice_ping", "ice_isA"}))
+
+
+        // Check the operations of the Object pseudo-interface unless we're generating code for Object itself.
+        if (scoped() != "::Ice::Object" && !checkBaseOperationNames(name, {"ice_id", "ice_ids", "ice_ping", "ice_isA"}))
         {
             hasConflictingIdentifier = true;
         }

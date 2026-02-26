@@ -54,43 +54,11 @@ Slice::Gen::Gen(const string& base, const string& dir, GenMode genMode, bool ena
         FileTracker::instance()->addFile(iceRpcFile);
     }
 
-    printHeader();
-
-    if (!_enableAnalysis)
+    printHeader(_out, fileBase + ".ice", _enableAnalysis);
+    if (_genMode == GenMode::IceRpc)
     {
-        printGeneratedHeader(_out, fileBase + ".ice");
-        if (_genMode == GenMode::IceRpc)
-        {
-            printGeneratedHeader(_iceRpcOut, fileBase + ".ice");
-        }
+        printHeader(_iceRpcOut, fileBase + ".ice", _enableAnalysis);
     }
-
-    _out << sp;
-    _out << nl << "#nullable enable";
-    _out << sp;
-
-    if (_enableAnalysis)
-    {
-        // Disable some warnings when auto-generated is removed from the header. See printGeneratedHeader above.
-        _out << nl << "#pragma warning disable SA1403 // File may only contain a single namespace";
-        _out << nl << "#pragma warning disable SA1611 // The documentation for parameter x is missing";
-
-        _out << nl << "#pragma warning disable CA1041 // Provide a message for the ObsoleteAttribute that marks ...";
-
-        _out << nl << "#pragma warning disable CA1068 // Cancellation token as last parameter";
-        _out << nl << "#pragma warning disable CA1725 // Change parameter name istr_ to istr in order to match ...";
-
-        // Missing doc - only necessary for the tests.
-        _out << nl << "#pragma warning disable SA1602";
-        _out << nl << "#pragma warning disable SA1604";
-        _out << nl << "#pragma warning disable SA1605";
-    }
-
-    _out << nl << "#pragma warning disable CS1591 // Missing XML Comment";
-    _out << nl << "#pragma warning disable CS1573 // Parameter has no matching param tag in the XML comment";
-    _out << nl << "#pragma warning disable CS0612 // Type or member is obsolete";
-    _out << nl << "#pragma warning disable CS0618 // Type or member is obsolete";
-    _out << nl << "#pragma warning disable CS0619 // Type or member is obsolete";
 
     if (_genMode == GenMode::Ice)
     {
@@ -161,15 +129,46 @@ Slice::Gen::generate(const UnitPtr& p)
 
             Slice::IceRpc::SkeletonVisitor skeletonVisitor(_iceRpcOut);
             p->visit(&skeletonVisitor);
-
         }
     }
 }
 
 void
-Slice::Gen::printHeader()
+Slice::Gen::printHeader(IceInternal::Output& out, const string& iceFile, bool enableAnalysis)
 {
-    _out << "// Copyright (c) ZeroC, Inc.";
-    _out << sp;
-    _out << nl << "// slice2cs version " << ICE_STRING_VERSION;
+    out << "// Copyright (c) ZeroC, Inc.";
+    out << sp;
+    out << nl << "// slice2cs version " << ICE_STRING_VERSION;
+
+    if (!enableAnalysis)
+    {
+        printGeneratedHeader(out, iceFile);
+    }
+
+    out << sp;
+    out << nl << "#nullable enable";
+    out << sp;
+
+    if (enableAnalysis)
+    {
+        // Disable some warnings when auto-generated is removed from the header. See printGeneratedHeader above.
+        out << nl << "#pragma warning disable SA1403 // File may only contain a single namespace";
+        out << nl << "#pragma warning disable SA1611 // The documentation for parameter x is missing";
+
+        out << nl << "#pragma warning disable CA1041 // Provide a message for the ObsoleteAttribute that marks ...";
+
+        out << nl << "#pragma warning disable CA1068 // Cancellation token as last parameter";
+        out << nl << "#pragma warning disable CA1725 // Change parameter name istr_ to istr in order to match ...";
+
+        // Missing doc - only necessary for the tests.
+        out << nl << "#pragma warning disable SA1602";
+        out << nl << "#pragma warning disable SA1604";
+        out << nl << "#pragma warning disable SA1605";
+    }
+
+    out << nl << "#pragma warning disable CS1591 // Missing XML Comment";
+    out << nl << "#pragma warning disable CS1573 // Parameter has no matching param tag in the XML comment";
+    out << nl << "#pragma warning disable CS0612 // Type or member is obsolete";
+    out << nl << "#pragma warning disable CS0618 // Type or member is obsolete";
+    out << nl << "#pragma warning disable CS0619 // Type or member is obsolete";
 }

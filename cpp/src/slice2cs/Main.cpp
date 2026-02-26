@@ -43,7 +43,7 @@ usage(const string& n)
                   "-UNAME                   Remove any definition for NAME.\n"
                   "-IDIR                    Put DIR in the include file search path.\n"
                   "--output-dir DIR         Create files in the directory DIR.\n"
-                  "--rpc [None|Ice|IceRPC]  Generate code for the specified RPC framework. Default is 'Ice'.\n"
+                  "--rpc [none|ice|icerpc]  Generate code for the specified RPC framework. Default is 'ice'.\n"
                   "-d, --debug              Print debug messages.\n"
                   "--depend                 Generate Makefile dependencies.\n"
                   "--depend-xml             Generate dependencies in XML format.\n"
@@ -64,7 +64,7 @@ compile(const vector<string>& argv)
     opts.addOpt("U", "", IceInternal::Options::NeedArg, "", IceInternal::Options::Repeat);
     opts.addOpt("I", "", IceInternal::Options::NeedArg, "", IceInternal::Options::Repeat);
     opts.addOpt("", "output-dir", IceInternal::Options::NeedArg);
-    opts.addOpt("", "rpc", IceInternal::Options::NeedArg, "Ice");
+    opts.addOpt("", "rpc", IceInternal::Options::NeedArg, "ice");
     opts.addOpt("", "depend");
     opts.addOpt("", "depend-xml");
     opts.addOpt("", "depend-file", IceInternal::Options::NeedArg, "");
@@ -133,15 +133,15 @@ compile(const vector<string>& argv)
 
     Slice::GenMode genMode;
     string rpcArg = opts.optArg("rpc");
-    if (rpcArg == "None")
+    if (rpcArg == "none")
     {
         genMode = Slice::GenMode::None;
     }
-    else if (rpcArg == "Ice")
+    else if (rpcArg == "ice")
     {
         genMode = Slice::GenMode::Ice;
     }
-    else if (rpcArg == "IceRPC")
+    else if (rpcArg == "icerpc")
     {
         genMode = Slice::GenMode::IceRpc;
     }

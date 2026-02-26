@@ -111,6 +111,44 @@ namespace
         return result.str();
     }
 
+    // A ValueTask that holds all the decoded in parameters,
+    string paramsValueTask(const OperationPtr& operation)
+    {
+        string ns = getNamespace(operation->interface());
+
+        ostringstream result;
+        result << "global::System.Threading.Tasks.ValueTask";
+
+        ParameterList inParameters = operation->inParameters();
+        if (!inParameters.empty())
+        {
+            result << '<';
+            if (inParameters.size() == 1)
+            {
+                result << csIncomingParamType(inParameters.front()->type(), ns, inParameters.front()->optional());
+            }
+            else
+            {
+                result << '(';
+                for (auto q = inParameters.begin(); q != inParameters.end(); ++q)
+                {
+                    const auto& param = *q;
+                    if (q != inParameters.begin())
+                    {
+                        result << ", ";
+                    }
+
+                    result << csIncomingParamType(param->type(), ns, param->optional())
+                        << " "
+                        << toPascalCase(param->mappedName());
+                }
+                result << ')';
+            }
+            result << '>';
+        }
+        return result.str();
+    }
+
     void writeMethod(
         IceInternal::Output& out,
         const OperationPtr& operation,
@@ -697,7 +735,7 @@ Slice::IceRpc::ProxyVisitor::visitInterfaceDefEnd(const InterfaceDefPtr& p)
     _out << nl << "public const string DefaultServicePath = \"" << defaultServicePath(p) << "\";";
     _out << sp;
     _out << nl << "/// <inheritdoc/>";
-    _out << nl << "SliceEncodeOptions? EncodeOptions { get; init; }";
+    _out << nl << "public SliceEncodeOptions? EncodeOptions { get; init; }";
     _out << sp;
     _out << nl << "/// <inheritdoc/>";
     _out << nl << "public required IceRpc.IInvoker Invoker { get; init; }";
@@ -836,7 +874,7 @@ Slice::IceRpc::ProxyVisitor::visitInterfaceDefEnd(const InterfaceDefPtr& p)
         }
         else
         {
-            _out << nl << "payload: Request.Encode";
+            _out << nl << "payload: Request.Encode" << operationName;
             _out << spar;
             for (const auto& param : operation->inParameters())
             {
@@ -854,7 +892,12 @@ Slice::IceRpc::ProxyVisitor::visitInterfaceDefEnd(const InterfaceDefPtr& p)
         {
             _out << nl << "idempotent: true,";
         }
-        // TODO: oneway attribute
+        if (!operation->returnsAnyValues())
+        {
+            // TODO: oneway attribute
+            _out << nl << "oneway: false,";
+        }
+
         _out << nl << cancellationTokenParam << ");";
         _out.dec();
 
@@ -1183,13 +1226,30 @@ Slice::IceRpc::SkeletonVisitor::visitInterfaceDefStart(const InterfaceDefPtr& p)
         _out.epar("");
     }
 
-    _out << sb;
+     _out << sb;
 
-    writeRequestClass(p);
-    _out << sp;
-    writeResponseClass(p);
+    if (!p->operations().empty())
+    {
+        writeRequestClass(p);
+        _out << sp;
+        writeResponseClass(p);
+        _out << sp;
+        _out << nl << "private static readonly IActivator _defaultActivator =";
+        _out.inc();
+        _out << nl << "IActivator.FromAssembly(typeof(I" << name << "Service).Assembly);";
+    }
 
-    return true;
+    // We don't generate the skeleton methods for ::Ice::Object, as we provide hand-written default implementations
+    // for these methods.
+    if (p->scoped() == "::Ice::Object")
+    {
+        _out << eb; // end of interface
+        return false;
+    }
+    else
+    {
+        return true;
+    }
 }
 
 void
@@ -1261,7 +1321,7 @@ Slice::IceRpc::SkeletonVisitor::writeRequestClass(const InterfaceDefPtr& interfa
             "summary",
             "Decodes the request payload of operation <c>" + operation->name() + "</c>.");
         // TODO: param doc comments
-        _out << nl << "public static " << returnTask(operation, "ValueTask", true)
+        _out << nl << "public static " << paramsValueTask(operation)
             << " Decode" << removeEscapePrefix(operation->mappedName()) << "Async(";
         _out.inc();
         _out << nl << "IceRpc.IncomingRequest request,";
@@ -1278,7 +1338,6 @@ Slice::IceRpc::SkeletonVisitor::writeRequestClass(const InterfaceDefPtr& interfa
             _out << nl << "request.DecodeArgsAsync(";
             _out.inc();
             _out << nl << "SliceEncoding.Slice1,";
-            _out << nl << "sender,";
             _out << nl << "(ref SliceDecoder decoder) => ";
 
             if (inParameters.size() == 1)

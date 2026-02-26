@@ -30,7 +30,7 @@ namespace Slice
         IceInternal::Output _iceRpcOut;
         const bool _enableAnalysis;
 
-        void printHeader();
+        static void printHeader(IceInternal::Output& out, const std::string& iceFile, bool enableAnalysis);
     };
 }
 
