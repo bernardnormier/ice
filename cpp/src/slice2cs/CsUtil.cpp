@@ -121,3 +121,83 @@ Slice::Csharp::writeDocLines(
         out << "</" << closeTag.value_or(openTag) << ">";
     }
 }
+
+Slice::Csharp::CsharpDocCommentFormatter::CsharpDocCommentFormatter(
+    function<pair<bool, string>(const string&, const ContainedPtr&, const SyntaxTreeBasePtr&)> linkFormatter)
+    : _linkFormatter(std::move(linkFormatter))
+{
+}
+
+void
+Slice::Csharp::CsharpDocCommentFormatter::preprocess(StringList& rawComment)
+{
+    for (auto& line : rawComment)
+    {
+        // Escape any XML special characters in the comment.
+        string::size_type pos = 0;
+        while ((pos = line.find_first_of("&<>", pos)) != string::npos)
+        {
+            switch (line[pos])
+            {
+                case '&':
+                    line.replace(pos, 1, "&amp;");
+                    break;
+                case '<':
+                    line.replace(pos, 1, "&lt;");
+                    break;
+                case '>':
+                    line.replace(pos, 1, "&gt;");
+                    break;
+            }
+            // Skip over the leading '&' character to avoid 'find'ing it again.
+            pos += 1;
+        }
+    }
+}
+
+string
+Slice::Csharp::CsharpDocCommentFormatter::formatCode(const string& rawText)
+{
+    return "<c>" + rawText + "</c>";
+}
+
+string
+Slice::Csharp::CsharpDocCommentFormatter::formatParamRef(const string& param)
+{
+    return "<paramref name=\"" + param + "\" />";
+}
+
+string
+Slice::Csharp::CsharpDocCommentFormatter::formatLink(
+    const string& rawLink,
+    const ContainedPtr& source,
+    const SyntaxTreeBasePtr& target)
+{
+    auto [mapToLink, qualifiedName] = _linkFormatter(rawLink, source, target);
+    if (mapToLink)
+    {
+        return "<see " + qualifiedName + " />";
+    }
+    else
+    {
+        return "<c>" + qualifiedName + "</c>";
+    }
+}
+
+string
+Slice::Csharp::CsharpDocCommentFormatter::formatSeeAlso(
+    const string& rawLink,
+    const ContainedPtr& source,
+    const SyntaxTreeBasePtr& target)
+{
+    auto [mapToLink, qualifiedName] = _linkFormatter(rawLink, source, target);
+    if (mapToLink)
+    {
+        return "<seealso " + qualifiedName + " />";
+    }
+    else
+    {
+        return "";
+    }
+}
+

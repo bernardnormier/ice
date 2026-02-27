@@ -9,6 +9,7 @@
 #include "Gen.h"
 #include "Ice/CtrlCHandler.h"
 #include "IceCsUtil.h"
+#include "IceRpcCsUtil.h"
 
 #include <algorithm>
 #include <cassert>
@@ -154,6 +155,11 @@ compile(const vector<string>& argv)
         }
         return EXIT_FAILURE;
     }
+    if (genMode == Slice::GenMode::None || genMode == Slice::GenMode::IceRpc)
+    {
+        // Both none and icerpc use the new mapping provided by IceRPC.
+        preprocessorArgs.push_back("-D__ICERPC__");
+    }
 
     if (sliceFiles.empty())
     {
@@ -194,9 +200,7 @@ compile(const vector<string>& argv)
         try
         {
             preprocessor = Preprocessor::create(argv[0], fileName, preprocessorArgs);
-            FILE* preprocessedHandle = genMode == Slice::GenMode::IceRpc
-                ? preprocessor->preprocess("-D__SLICE2CS__ -D__ICERPC__")
-                : preprocessor->preprocess("-D__SLICE2CS__");
+            FILE* preprocessedHandle = preprocessor->preprocess("-D__SLICE2CS__");
 
             if (preprocessedHandle == nullptr)
             {
@@ -241,8 +245,11 @@ compile(const vector<string>& argv)
             }
             else
             {
-                Slice::Csharp::IceDocCommentFormatter iceFormatter;
-                parseAllDocComments(unit, iceFormatter);
+                Slice::Csharp::CsharpDocCommentFormatter docCommentFormatter{
+                     genMode == Slice::GenMode::Ice ? Slice::Csharp::iceLinkFormatter : Slice::Csharp::icerpcLinkFormatter
+                };
+
+                parseAllDocComments(unit, docCommentFormatter);
 
                 Gen gen(preprocessor->getBaseName(), output, genMode, enableAnalysis);
                 gen.generate(unit);

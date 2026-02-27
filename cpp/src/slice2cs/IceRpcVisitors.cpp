@@ -892,13 +892,9 @@ Slice::IceRpc::ProxyVisitor::visitInterfaceDefEnd(const InterfaceDefPtr& p)
         {
             _out << nl << "idempotent: true,";
         }
-        if (!operation->returnsAnyValues())
-        {
-            // TODO: oneway attribute
-            _out << nl << "oneway: false,";
-        }
+        // TODO: oneway attribute
 
-        _out << nl << cancellationTokenParam << ");";
+        _out << nl << "cancellationToken: " << cancellationTokenParam << ");";
         _out.dec();
 
         _out.dec();
@@ -928,7 +924,7 @@ Slice::IceRpc::ProxyVisitor::visitInterfaceDefEnd(const InterfaceDefPtr& p)
         "param name=\"proxy\"",
         "The proxy to encode as a service address (can be null).",
         "param");
-    _out << nl << "public static void Encode" << name << "Proxy(this ref SliceEncoder encoder, "
+    _out << nl << "public static void EncodeNullable" << name << "Proxy(this ref SliceEncoder encoder, "
         << name << "Proxy? proxy) =>";
     _out.inc();
     _out << nl << "encoder.EncodeNullableServiceAddress(proxy?.ServiceAddress);";

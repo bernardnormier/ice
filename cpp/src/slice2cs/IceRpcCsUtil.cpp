@@ -587,3 +587,80 @@ Slice::Csharp::decodeOptionalField(Output& out, int tag, const TypePtr& type, co
     out << ")";
     out.dec();
 }
+
+std::pair<bool, string>
+Slice::Csharp::icerpcLinkFormatter(const string& rawLink, const ContainedPtr& source, const SyntaxTreeBasePtr& target)
+{
+    ostringstream result;
+
+    if (auto builtinTarget = dynamic_pointer_cast<Builtin>(target))
+    {
+        string typeS = csFieldType(builtinTarget, "");
+        if (builtinTarget->kind() == Builtin::KindObjectProxy || builtinTarget->kind() == Builtin::KindValue)
+        {
+            // Remove trailing '?':
+            typeS.pop_back();
+            result << "cref=\"" << typeS << "\"";
+        }
+        else
+        {
+            // All other builtin types correspond to C# language keywords.
+            result << "langword=\"" << typeS << "\"";
+        }
+    }
+    else if (auto contained = dynamic_pointer_cast<Contained>(target))
+    {
+        string sourceScope = source->mappedScope(".");
+        sourceScope.pop_back(); // Remove the trailing '.' ns separator.
+
+        if (dynamic_pointer_cast<Sequence>(contained) || dynamic_pointer_cast<Dictionary>(contained))
+        {
+            // slice2cs doesn't generate C# types for sequences or dictionaries, so there's nothing to link to.
+            // So, we return 'false' to signal this, and just output the sequence or dictionary name.
+            return {false, getUnqualified(contained, sourceScope)};
+        }
+
+        result << "cref=\"";
+        if (auto operationTarget = dynamic_pointer_cast<Operation>(target))
+        {
+            // link to the method on the proxy interface
+            result << getUnqualified(operationTarget->interface(), sourceScope, "", "Proxy") << "."
+                   << operationTarget->mappedName() << "Async";
+        }
+        else if (auto interfaceTarget = dynamic_pointer_cast<InterfaceDecl>(target))
+        {
+            // link to the proxy interface
+            result << getUnqualified(interfaceTarget, sourceScope, "", "Proxy");
+        }
+        else
+        {
+            result << getUnqualified(contained, sourceScope);
+        }
+        result << "\"";
+    }
+    else
+    {
+        // Replace "::" by "." in the raw link. This is for the situation where the user passes a Slice type
+        // reference but (a) the source Slice file does not include this type and (b) there is no cs:identifier or
+        // other identifier renaming.
+        string targetS = rawLink;
+        // Replace any "::" ns separators with '.'s.
+        auto pos = targetS.find("::");
+        while (pos != string::npos)
+        {
+            targetS.replace(pos, 2, ".");
+            pos = targetS.find("::", pos);
+        }
+        // Replace any '#' ns separators with '.'s.
+        replace(targetS.begin(), targetS.end(), '#', '.');
+        // Remove any leading ns separators.
+        if (targetS.find('.') == 0)
+        {
+            targetS.erase(0, 1);
+        }
+        result << "cref=\"" << targetS << "\"";
+    }
+
+    return {true, result.str()};
+}
+
