@@ -246,7 +246,9 @@ Slice::IceRpc::TypesVisitor::visitStructEnd(const StructPtr& p)
     _out << sb;
     for (const auto& field : p->dataMembers())
     {
+        _out << nl;
         encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field, "encoder");
+        _out << ';';
     }
     _out << eb;
 
@@ -295,7 +297,7 @@ Slice::IceRpc::TypesVisitor::visitClassDefEnd(const ClassDefPtr& p)
     if (p->compactId() != -1)
     {
         _out << nl << "private static readonly int CompactSliceTypeId = typeof(" << escapedName
-             << ").GetCompactSliceTypeId()!;";
+             << ").GetCompactSliceTypeId()!.Value;";
     }
 
     if (!p->allDataMembers().empty())
@@ -607,7 +609,9 @@ Slice::IceRpc::TypesVisitor::writeEncodeDecode(
     {
         if (!field->optional())
         {
+            _out << nl;
             encodeField(_out, "this." + field->mappedName(), field->type(), ns, TypeContext::Field, "encoder");
+            _out << ';';
         }
     }
     // Encode optional fields
@@ -1022,7 +1026,9 @@ Slice::IceRpc::ProxyVisitor::writeProxyRequestClass(const InterfaceDefPtr& inter
                 }
                 else
                 {
+                    _out << nl;
                     encodeField(_out, param->mappedName(), param->type(), ns, TypeContext::OutgoingParam, "encoder_");
+                    _out << ';';
                 }
             }
 
@@ -1454,7 +1460,9 @@ Slice::IceRpc::SkeletonVisitor::writeResponseClass(const InterfaceDefPtr& interf
                 }
                 else
                 {
+                    _out << nl;
                     encodeField(_out, param->mappedName(), param->type(), ns, TypeContext::OutgoingParam, "encoder_");
+                    _out << ';';
                 }
             }
 

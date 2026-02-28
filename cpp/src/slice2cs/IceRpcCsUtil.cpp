@@ -269,37 +269,37 @@ Slice::Csharp::encodeField(
     BuiltinPtr builtin = dynamic_pointer_cast<Builtin>(type);
     if (builtin)
     {
-        out << nl << encoderName << ".Encode" << builtinTable[builtin->kind()] << "(" << fieldName << ");";
+        out << encoderName << ".Encode" << builtinTable[builtin->kind()] << "(" << fieldName << ")";
         return;
     }
 
     ClassDeclPtr cl = dynamic_pointer_cast<ClassDecl>(type);
     if (cl)
     {
-        out << nl << encoderName << ".EncodeNullableClass(" << fieldName << ");";
+        out << encoderName << ".EncodeNullableClass(" << fieldName << ")";
         return;
     }
 
     StructPtr st = dynamic_pointer_cast<Struct>(type);
     if (st)
     {
-        out << nl << fieldName << ".Encode(ref " << encoderName << ");";
+        out << fieldName << ".Encode(ref " << encoderName << ")";
         return;
     }
 
     InterfaceDeclPtr proxy = dynamic_pointer_cast<InterfaceDecl>(type);
     if (proxy)
     {
-        out << nl << getUnqualified(proxy, ns) << "ProxySliceEncoderExtensions.EncodeNullable"
-            << removeEscapePrefix(proxy->mappedName()) << "Proxy(ref " << encoderName << ", " << fieldName << ");";
+        out << getUnqualified(proxy, ns) << "ProxySliceEncoderExtensions.EncodeNullable"
+            << removeEscapePrefix(proxy->mappedName()) << "Proxy(ref " << encoderName << ", " << fieldName << ")";
         return;
     }
 
     EnumPtr en = dynamic_pointer_cast<Enum>(type);
     if (en)
     {
-        out << nl << getUnqualified(en, ns) << "SliceEncoderExtensions.Encode" << removeEscapePrefix(en->mappedName())
-            << "(ref " << encoderName << ", " << fieldName << ");";
+        out << getUnqualified(en, ns) << "SliceEncoderExtensions.Encode" << removeEscapePrefix(en->mappedName())
+            << "(ref " << encoderName << ", " << fieldName << ")";
         return;
     }
 
@@ -310,24 +310,26 @@ Slice::Csharp::encodeField(
         {
             if (context == TypeContext::OutgoingParam)
             {
-                out << nl << encoderName << ".EncodeSpan(" << fieldName << ".Span);";
+                out << encoderName << ".EncodeSpan(" << fieldName << ".Span)";
             }
             else
             {
-                out << nl << encoderName << ".EncodeSequence(" << fieldName << ");";
+                out << encoderName << ".EncodeSequence(" << fieldName << ")";
             }
         }
         else
         {
             TypePtr elementType = seq->type();
 
-            out << nl << encoderName << ".EncodeSequence(";
+            out <<encoderName << ".EncodeSequence(";
             out.inc();
             out << nl << fieldName << ",";
             out << nl << "(ref SliceEncoder encoder, " << csFieldType(elementType, ns) << " value) =>";
-            out << sb;
+            out << nl;
+            out.inc();
             encodeField(out, "value", elementType, ns, TypeContext::Field, "encoder");
-            out << eb << ");";
+            out.dec();
+            out << ")";
             out.dec();
         }
         return;
@@ -338,17 +340,21 @@ Slice::Csharp::encodeField(
     {
         TypePtr keyType = dict->keyType();
         TypePtr valueType = dict->valueType();
-        out << nl << encoderName << ".EncodeDictionary(";
+        out << encoderName << ".EncodeDictionary(";
         out.inc();
         out << nl << fieldName << ",";
         out << nl << "(ref SliceEncoder encoder, " << csFieldType(keyType, ns) << " key) =>";
-        out << sb;
+        out << nl;
+        out.inc();
         encodeField(out, "key", keyType, ns, TypeContext::Field, "encoder");
+        out.dec();
         out << eb << ",";
         out << nl << "(ref SliceEncoder encoder, " << csFieldType(valueType, ns) << " value) =>";
-        out << sb;
+        out << nl;
+        out.inc();
         encodeField(out, "value", valueType, ns, TypeContext::Field, "encoder");
-        out << eb << ");";
+        out.dec();
+        out << ")";
         out.dec();
         return;
     }
@@ -435,9 +441,9 @@ Slice::Csharp::encodeOptionalField(
 
     out << nl << fieldName << (isCsValueType(type) ? ".Value" : "") << ",";
     out << nl << "(ref SliceEncoder encoder, " << csType(type, ns, context) << " value) => ";
-    out << sb;
+    out.inc();
     encodeField(out, "value", type, ns, context, "encoder");
-    out << eb;
+    out.dec();
     out << ");";
     out.dec();
 
@@ -472,7 +478,7 @@ Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, T
     ClassDeclPtr cl = dynamic_pointer_cast<ClassDecl>(type);
     if (cl)
     {
-        out << "decoder.DecodeClass<" << getUnqualified(cl, ns) << ">()";
+        out << "decoder.DecodeNullableClass<" << getUnqualified(cl, ns) << ">()";
         return;
     }
 
@@ -578,11 +584,10 @@ Slice::Csharp::decodeOptionalField(Output& out, int tag, const TypePtr& type, co
     out << nl << "tag: " << tag << ",";
     out << nl << "TagFormat." << getTagFormat(type) << ",";
     out << nl << "(ref SliceDecoder decoder) => ";
-    out.inc();
-    out << nl;
+    // We need to cast to the optional type. This is especially important for value types.
+    out << "(" << csType(type, ns, context) << "?)";
     decodeField(out, type, ns, context);
     out << ",";
-    out.dec();
     out << nl << "useTagEndMarker: " << (context == TypeContext::Field ? "true" : "false");
     out << ")";
     out.dec();
