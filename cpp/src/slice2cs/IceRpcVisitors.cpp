@@ -18,6 +18,7 @@ using namespace IceInternal;
 namespace
 {
     // Returns paramName as-is or escaped if it conflicts with any of the parameter names in params.
+    // paramName does not start with an escape prefix.
     string escapeParamName(string paramName, const ParameterList& params)
     {
         for (const auto& param : params)
@@ -30,6 +31,7 @@ namespace
         return paramName;
     }
 
+    // paramName does not start with an escape prefix.
     string escapeCapitalizedParamName(string paramName, const ParameterList& params)
     {
         for (const auto& param : params)
@@ -61,92 +63,67 @@ namespace
         return format == FormatType::SlicedFormat ? "ClassFormat.Sliced" : "default";
     }
 
-    ParameterList returnAndOutParams(const OperationPtr& operation)
-    {
-        ParameterList params = operation->outParameters();
-        if (operation->returnType())
-        {
-            string returnParamName = escapeCapitalizedParamName("ReturnValue", params);
-            params.insert(params.begin(), operation->returnParameter(returnParamName));
-        }
-        return params;
-    }
-
-    string returnTask(const OperationPtr& operation, const string& taskType, bool dispatch)
+    void writeReturnTask(IceInternal::Output& out, const OperationPtr& operation, const string& taskType, bool dispatch)
     {
         string ns = getNamespace(operation->interface());
 
-        ostringstream result;
-        result << "global::System.Threading.Tasks." << taskType;
+        out << "global::System.Threading.Tasks." << taskType;
 
         TypeContext returnContext = dispatch ? TypeContext::OutgoingParam : TypeContext::IncomingParam;
 
         if (operation->returnsAnyValues())
         {
-            result << '<';
-            ParameterList returnParams = returnAndOutParams(operation);
+            out << '<';
+            ParameterList returnParams = operation->outParameters();
+            if (operation->returnType())
+            {
+                string returnParamName = escapeCapitalizedParamName("ReturnValue", returnParams);
+                returnParams.insert(returnParams.begin(), operation->returnParameter(returnParamName));
+            }
 
             if (returnParams.size() == 1)
             {
-                result << csType(returnParams.front()->type(), ns, returnContext, returnParams.front()->optional());
+                out << csType(returnParams.front()->type(), ns, returnContext, returnParams.front()->optional());
             }
             else
             {
-                result << '(';
-                for (auto q = returnParams.begin(); q != returnParams.end(); ++q)
+                out << spar;
+                for (const auto& param : returnParams)
                 {
-                    const auto& param = *q;
-                    if (q != returnParams.begin())
-                    {
-                        result << ", ";
-                    }
-
-                    result << csType(param->type(), ns, returnContext, param->optional())
-                        << " " << toPascalCase(param->mappedName());
+                    out << (csType(param->type(), ns, returnContext, param->optional()) + " " + toPascalCase(param->mappedName()));
                 }
-                result << ')';
+                out << epar;
             }
-            result << '>';
+            out << '>';
         }
-        return result.str();
     }
 
     // A ValueTask that holds all the decoded in parameters,
-    string paramsValueTask(const OperationPtr& operation)
+    void writeParamsValueTask(IceInternal::Output& out,const OperationPtr& operation)
     {
         string ns = getNamespace(operation->interface());
 
-        ostringstream result;
-        result << "global::System.Threading.Tasks.ValueTask";
+        out << "global::System.Threading.Tasks.ValueTask";
 
         ParameterList inParameters = operation->inParameters();
         if (!inParameters.empty())
         {
-            result << '<';
+            out << '<';
             if (inParameters.size() == 1)
             {
-                result << csIncomingParamType(inParameters.front()->type(), ns, inParameters.front()->optional());
+                out << csIncomingParamType(inParameters.front()->type(), ns, inParameters.front()->optional());
             }
             else
             {
-                result << '(';
-                for (auto q = inParameters.begin(); q != inParameters.end(); ++q)
+                out << spar;
+                for (const auto& param: inParameters)
                 {
-                    const auto& param = *q;
-                    if (q != inParameters.begin())
-                    {
-                        result << ", ";
-                    }
-
-                    result << csIncomingParamType(param->type(), ns, param->optional())
-                        << " "
-                        << toPascalCase(param->mappedName());
+                    out << (csIncomingParamType(param->type(), ns, param->optional()) + " " + toPascalCase(param->mappedName()));
                 }
-                result << ')';
+                out << epar;
             }
-            result << '>';
+            out << '>';
         }
-        return result.str();
     }
 
     void writeMethod(
@@ -174,8 +151,8 @@ namespace
                 "global::System.Threading.CancellationToken " + cancellationTokenParam + " = default"};
         }
 
-        out << returnTask(operation, dispatch ? "ValueTask" : "Task", dispatch) << ' '
-            << removeEscapePrefix(operation->mappedName()) << "Async(";
+        writeReturnTask(out, operation, dispatch ? "ValueTask" : "Task", dispatch);
+        out << ' ' << removeEscapePrefix(operation->mappedName()) << "Async(";
         out.inc();
         for (const auto& param : operation->inParameters())
         {
@@ -1060,8 +1037,9 @@ Slice::IceRpc::ProxyVisitor::writeProxyResponseClass(const InterfaceDefPtr& inte
             _out,
             "summary",
             "Decodes an incoming response for operation <c>" + operation->name() + "</c>.");
-        _out << nl << "public static async " << returnTask(operation, "ValueTask", false)
-            << " Decode" << removeEscapePrefix(operation->mappedName()) << "Async(";
+        _out << nl << "public static async ";
+        writeReturnTask(_out, operation, "ValueTask", false);
+        _out << " Decode" << removeEscapePrefix(operation->mappedName()) << "Async(";
         _out.inc();
         _out << nl << "IceRpc.IncomingResponse response,";
         _out << nl << "IceRpc.OutgoingRequest request,";
@@ -1324,8 +1302,9 @@ Slice::IceRpc::SkeletonVisitor::writeRequestClass(const InterfaceDefPtr& interfa
             "summary",
             "Decodes the request payload of operation <c>" + operation->name() + "</c>.");
         // TODO: param doc comments
-        _out << nl << "public static " << paramsValueTask(operation)
-            << " Decode" << removeEscapePrefix(operation->mappedName()) << "Async(";
+        _out << nl << "public static ";
+        writeParamsValueTask(_out, operation);
+        _out << " Decode" << removeEscapePrefix(operation->mappedName()) << "Async(";
         _out.inc();
         _out << nl << "IceRpc.IncomingRequest request,";
         _out << nl << "global::System.Threading.CancellationToken cancellationToken) =>";
