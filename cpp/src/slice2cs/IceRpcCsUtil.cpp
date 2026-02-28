@@ -348,7 +348,7 @@ Slice::Csharp::encodeField(
         out.inc();
         encodeField(out, "key", keyType, ns, TypeContext::Field, "encoder");
         out.dec();
-        out << eb << ",";
+        out << ',';
         out << nl << "(ref SliceEncoder encoder, " << csFieldType(valueType, ns) << " value) =>";
         out << nl;
         out.inc();
@@ -466,7 +466,7 @@ Slice::Csharp::decodeField(Output& out, const TypePtr& type, const string& ns, T
         "Double",
         "String",
         "NullableServiceAddress",
-        "Class<SliceClass>"};
+        "NullableClass<SliceClass>"};
 
     BuiltinPtr builtin = dynamic_pointer_cast<Builtin>(type);
     if (builtin)

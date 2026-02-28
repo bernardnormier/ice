@@ -1239,6 +1239,7 @@ Slice::IceRpc::SkeletonVisitor::visitInterfaceDefStart(const InterfaceDefPtr& p)
         _out << nl << "private static readonly IActivator _defaultActivator =";
         _out.inc();
         _out << nl << "IActivator.FromAssembly(typeof(I" << name << "Service).Assembly);";
+        _out.dec();
     }
 
     // We don't generate the skeleton methods for ::Ice::Object, as we provide hand-written default implementations
