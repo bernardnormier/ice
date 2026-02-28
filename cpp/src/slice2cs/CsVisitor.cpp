@@ -28,7 +28,6 @@ namespace
 
 Slice::CsVisitor::CsVisitor(Output& out) : _out(out) {}
 
-
 bool
 Slice::CsVisitor::visitModuleStart(const ModulePtr& p)
 {

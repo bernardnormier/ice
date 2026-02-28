@@ -1793,7 +1793,7 @@ Slice::Ice::ResultVisitor::visitModuleStart(const ModulePtr& p)
 {
     if (!hasResultType(p))
     {
-       return false;
+        return false;
     }
     return CsVisitor::visitModuleStart(p);
 }

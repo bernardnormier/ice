@@ -246,8 +246,8 @@ compile(const vector<string>& argv)
             else
             {
                 Slice::Csharp::CsharpDocCommentFormatter docCommentFormatter{
-                     genMode == Slice::GenMode::Ice ? Slice::Csharp::iceLinkFormatter : Slice::Csharp::icerpcLinkFormatter
-                };
+                    genMode == Slice::GenMode::Ice ? Slice::Csharp::iceLinkFormatter
+                                                   : Slice::Csharp::icerpcLinkFormatter};
 
                 parseAllDocComments(unit, docCommentFormatter);
 

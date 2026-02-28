@@ -321,7 +321,7 @@ Slice::Csharp::encodeField(
         {
             TypePtr elementType = seq->type();
 
-            out <<encoderName << ".EncodeSequence(";
+            out << encoderName << ".EncodeSequence(";
             out.inc();
             out << nl << fieldName << ",";
             out << nl << "(ref SliceEncoder encoder, " << csFieldType(elementType, ns) << " value) =>";
@@ -668,4 +668,3 @@ Slice::Csharp::icerpcLinkFormatter(const string& rawLink, const ContainedPtr& so
 
     return {true, result.str()};
 }
-

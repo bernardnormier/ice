@@ -54,7 +54,6 @@ namespace Slice::Ice
         void visitOperation(const OperationPtr&) final;
     };
 
-
     /// Generates the server-side code for Slice interfaces.
     class SkeletonVisitor final : public CsVisitor
     {

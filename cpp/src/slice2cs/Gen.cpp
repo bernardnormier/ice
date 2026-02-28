@@ -16,7 +16,8 @@ using namespace Slice::Csharp;
 using namespace IceInternal;
 
 Slice::Gen::Gen(const string& base, const string& dir, GenMode genMode, bool enableAnalysis)
-    : _genMode(genMode), _enableAnalysis(enableAnalysis)
+    : _genMode(genMode),
+      _enableAnalysis(enableAnalysis)
 {
     string fileBase = base;
     string::size_type pos = base.find_last_of("/\\");

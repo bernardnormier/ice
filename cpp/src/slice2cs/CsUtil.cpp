@@ -200,4 +200,3 @@ Slice::Csharp::CsharpDocCommentFormatter::formatSeeAlso(
         return "";
     }
 }
-
