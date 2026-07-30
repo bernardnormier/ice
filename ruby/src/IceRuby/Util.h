@@ -141,6 +141,13 @@ namespace IceRuby
     bool getEncodingVersion(VALUE, Ice::EncodingVersion&);
 
     //
+    // The callWithoutGVL function releases Ruby's Global VM Lock (GVL) while calling a blocking
+    // Ice operation, so that other Ruby threads can run during the call. The function must not
+    // call into Ruby.
+    //
+    void callWithoutGVL(const std::function<void()>&);
+
+    //
     // The callRuby functions are used to invoke Ruby C API functions
     // while translating any Ruby exception into RubyException so that
     // C++ objects are cleaned up properly. Overloadings are provided

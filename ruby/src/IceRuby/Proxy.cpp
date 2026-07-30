@@ -724,7 +724,8 @@ IceRuby_ObjectPrx_ice_getConnection(VALUE self)
     ICE_RUBY_TRY
     {
         Ice::ObjectPrx p = getProxy(self);
-        Ice::ConnectionPtr conn = p->ice_getConnection();
+        Ice::ConnectionPtr conn;
+        callWithoutGVL([&] { conn = p->ice_getConnection(); });
         return createConnection(conn);
     }
     ICE_RUBY_CATCH
@@ -753,7 +754,7 @@ IceRuby_ObjectPrx_ice_flushBatchRequests(VALUE self)
     ICE_RUBY_TRY
     {
         Ice::ObjectPrx p = getProxy(self);
-        p->ice_flushBatchRequests();
+        callWithoutGVL([&p] { p->ice_flushBatchRequests(); });
     }
     ICE_RUBY_CATCH
     return Qnil;

@@ -56,7 +56,7 @@ IceRuby_Connection_close(VALUE self)
     {
         Ice::ConnectionPtr* p = reinterpret_cast<Ice::ConnectionPtr*>(DATA_PTR(self));
         assert(p);
-        (*p)->close().get();
+        callWithoutGVL([p] { (*p)->close().get(); });
     }
     ICE_RUBY_CATCH
     return Qnil;
@@ -89,7 +89,7 @@ IceRuby_Connection_flushBatchRequests(VALUE self, VALUE compress)
         volatile VALUE compressValue = callRuby(rb_funcall, compress, rb_intern("to_i"), 0);
         assert(TYPE(compressValue) == T_FIXNUM);
         Ice::CompressBatch cb = static_cast<Ice::CompressBatch>(FIX2LONG(compressValue));
-        (*p)->flushBatchRequests(cb);
+        callWithoutGVL([p, cb] { (*p)->flushBatchRequests(cb); });
     }
     ICE_RUBY_CATCH
     return Qnil;

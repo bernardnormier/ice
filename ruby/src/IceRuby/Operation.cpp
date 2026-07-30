@@ -290,11 +290,11 @@ IceRuby::OperationI::invoke(const Ice::ObjectPrx& proxy, VALUE args, VALUE hctx)
             throw RubyException(rb_eArgError, "context argument must be nil or a hash");
         }
 
-        status = proxy->ice_invoke(_sliceName, _mode, params, result, ctx);
+        callWithoutGVL([&] { status = proxy->ice_invoke(_sliceName, _mode, params, result, ctx); });
     }
     else
     {
-        status = proxy->ice_invoke(_sliceName, _mode, params, result);
+        callWithoutGVL([&] { status = proxy->ice_invoke(_sliceName, _mode, params, result); });
     }
 
     //

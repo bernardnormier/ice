@@ -2,10 +2,42 @@
 
 #include "Util.h"
 #include "Ice/LocalExceptions.h"
+#include <ruby/thread.h>
 #include <stdarg.h>
 
 using namespace std;
 using namespace IceRuby;
+
+extern "C" void*
+IceRuby_callWithoutGVL(void* func)
+{
+    (*static_cast<function<void()>*>(func))();
+    return nullptr;
+}
+
+void
+IceRuby::callWithoutGVL(const function<void()>& fn)
+{
+    // A C++ exception must not propagate through rb_thread_call_without_gvl: capture it and
+    // rethrow it once the GVL has been reacquired.
+    exception_ptr exception;
+    function<void()> wrapper = [&fn, &exception]
+    {
+        try
+        {
+            fn();
+        }
+        catch (...)
+        {
+            exception = current_exception();
+        }
+    };
+    rb_thread_call_without_gvl(IceRuby_callWithoutGVL, &wrapper, nullptr, nullptr);
+    if (exception)
+    {
+        rethrow_exception(exception);
+    }
+}
 
 namespace
 {

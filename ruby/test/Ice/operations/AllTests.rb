@@ -27,5 +27,19 @@ def allTests(helper, communicator)
     batchOneways(derived)
     puts "ok"
 
+    print "testing communicator shutdown from another thread... "
+    STDOUT.flush
+    initData = Ice::InitializationData.new
+    initData.properties = communicator.getProperties().clone()
+    ic = Ice::initialize(initData)
+    thread = Thread.new do
+        sleep(0.2)
+        ic.shutdown()
+    end
+    ic.waitForShutdown()
+    thread.join()
+    ic.destroy()
+    puts "ok"
+
     return cl
 end

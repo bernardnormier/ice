@@ -243,7 +243,7 @@ IceRuby_Communicator_destroy(VALUE self)
 {
     Ice::CommunicatorPtr p = getCommunicator(self);
 
-    ICE_RUBY_TRY { p->destroy(); }
+    ICE_RUBY_TRY { callWithoutGVL([&p] { p->destroy(); }); }
     ICE_RUBY_CATCH
 
     _sliceLoaderMap.erase(p);
@@ -281,7 +281,7 @@ IceRuby_Communicator_waitForShutdown(VALUE self)
     ICE_RUBY_TRY
     {
         Ice::CommunicatorPtr p = getCommunicator(self);
-        p->waitForShutdown();
+        callWithoutGVL([&p] { p->waitForShutdown(); });
     }
     ICE_RUBY_CATCH
     return Qnil;
@@ -517,7 +517,7 @@ IceRuby_Communicator_flushBatchRequests(VALUE self, VALUE compress)
         volatile VALUE compressValue = callRuby(rb_funcall, compress, rb_intern("to_i"), 0);
         assert(TYPE(compressValue) == T_FIXNUM);
         Ice::CompressBatch cb = static_cast<Ice::CompressBatch>(FIX2LONG(compressValue));
-        p->flushBatchRequests(cb);
+        callWithoutGVL([&p, cb] { p->flushBatchRequests(cb); });
     }
     ICE_RUBY_CATCH
     return Qnil;
